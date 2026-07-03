@@ -1,5 +1,7 @@
 import { useRef, useState } from 'react';
 import { toPng } from 'html-to-image';
+import QRCode from 'qrcode';
+import { motion } from 'framer-motion';
 import { getDevice } from '@/data/devices';
 import { useEditor } from '@/store/editorStore';
 import { PREVIEW_DATA } from '@/store/liveDataStore';
@@ -19,6 +21,42 @@ export function ExportModal() {
   const aodRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [zeppStep, setZeppStep] = useState<string | null>(null);
+  const [installStep, setInstallStep] = useState<string | null>(null);
+  const [installQr, setInstallQr] = useState<{ qr: string; url: string } | null>(null);
+  const buildServer = (import.meta.env.VITE_BUILD_SERVER_URL as string | undefined)?.replace(
+    /\/$/,
+    '',
+  );
+
+  const installOnWatch = async () => {
+    if (!buildServer) return;
+    setInstallQr(null);
+    try {
+      setInstallStep('Rendering…');
+      const { zip } = await generateZeppProject(project, setInstallStep);
+      setInstallStep('Compiling on server…');
+      const res = await fetch(`${buildServer}/api/build`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/zip' },
+        body: zip as unknown as BodyInit,
+      });
+      if (!res.ok) {
+        const detail = await res.json().catch(() => ({ error: res.statusText }));
+        throw new Error(detail.error ?? res.statusText);
+      }
+      const { url } = (await res.json()) as { url: string };
+      const qr = await QRCode.toDataURL(url, {
+        width: 232,
+        margin: 1,
+        color: { dark: '#04121f', light: '#eaf6ff' },
+      });
+      setInstallQr({ qr, url });
+    } catch (err) {
+      toast(`Install build failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error');
+    } finally {
+      setInstallStep(null);
+    }
+  };
 
   const exportZepp = async () => {
     setZeppStep('Preparing…');
@@ -120,6 +158,48 @@ export function ExportModal() {
             {zeppStep ?? 'Zepp OS'}
           </button>
         </div>
+        {buildServer ? (
+          <div className="export__row export__row--primary">
+            <div>
+              <h4>Install on watch</h4>
+              <p>
+                Compiles the watchface and shows a QR code — scan it with the Zepp app (developer
+                mode) to install. No tools needed.
+              </p>
+            </div>
+            <button
+              className="btn btn--primary"
+              disabled={installStep !== null}
+              onClick={installOnWatch}
+            >
+              <Svg d={UI_ICONS.export} size={13} />
+              {installStep ?? 'Install'}
+            </button>
+          </div>
+        ) : (
+          <p className="export__note">
+            Tip: run the bundled build server (see <code>server/README.md</code>) and set{' '}
+            <code>VITE_BUILD_SERVER_URL</code> to get a one-click “Install on watch” QR here.
+          </p>
+        )}
+        {installQr && (
+          <motion.div
+            className="export__qr"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+          >
+            <img src={installQr.qr} alt="Install QR code" />
+            <div>
+              <h4>Scan with the Zepp app</h4>
+              <ol>
+                <li>Zepp app → Profile → enable Developer Mode (one-time)</li>
+                <li>Open the scanner in Developer Mode</li>
+                <li>Scan this code — the watchface installs over Bluetooth</li>
+              </ol>
+              <p className="export__note">Link valid ~1 hour · {installQr.url}</p>
+            </div>
+          </motion.div>
+        )}
         <p className="export__note">
           Live values (time, health, weather) are rendered by the watch; everything static is baked
           pixel-perfect at device resolution. Custom uploaded fonts ship with the project.

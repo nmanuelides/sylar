@@ -1,0 +1,14 @@
+{
+  "name": "sylar-build-server",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Compiles Sylar Zepp OS watchface projects to installable .zab packages",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js"
+  },
+  "dependencies": {
+    "express": "^4.21.0",
+    "fflate": "^0.8.2"
+  }
+}
