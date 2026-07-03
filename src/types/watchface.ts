@@ -16,7 +16,18 @@ export type DataSource =
   | 'battery'
   | 'calories'
   | 'distance'
-  | 'weather';
+  | 'weather'
+  | 'weatherMin'
+  | 'weatherMax'
+  | 'humidity'
+  | 'uvIndex'
+  | 'pai'
+  | 'spo2'
+  | 'stress'
+  | 'standHours'
+  | 'sleepScore'
+  | 'sleepDuration'
+  | 'floors';
 
 export type HandKind = 'hour' | 'minute' | 'second';
 export type HandStyle = 'classic' | 'sword' | 'thin';
@@ -236,4 +247,16 @@ export interface LiveData {
   calories: number;
   distance: number;
   weatherTemp: number;
+  weatherTempMin: number;
+  weatherTempMax: number;
+  humidity: number;
+  uvIndex: number;
+  pai: number;
+  spo2: number;
+  stress: number;
+  standHours: number;
+  sleepScore: number;
+  /** Total sleep in minutes */
+  sleepMinutes: number;
+  floors: number;
 }

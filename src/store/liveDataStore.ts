@@ -10,6 +10,17 @@ export const PREVIEW_DATA: LiveData = {
   calories: 328,
   distance: 5.62,
   weatherTemp: 24,
+  weatherTempMin: 18,
+  weatherTempMax: 27,
+  humidity: 62,
+  uvIndex: 5,
+  pai: 78,
+  spo2: 98,
+  stress: 34,
+  standHours: 8,
+  sleepScore: 82,
+  sleepMinutes: 452,
+  floors: 12,
 };
 
 export const useLiveData = create<LiveData>(() => ({

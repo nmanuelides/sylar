@@ -52,6 +52,31 @@ export function sourceValue(source: DataSource, data: LiveData): SourceValue {
       return { value: data.distance.toFixed(2), unit: ' KM', label: 'DISTANCE', fraction: data.distance / 10 };
     case 'weather':
       return { value: `${data.weatherTemp}°`, unit: '', label: 'WEATHER', fraction: data.weatherTemp / 40 };
+    case 'weatherMin':
+      return { value: `${data.weatherTempMin}°`, unit: '', label: 'MIN TEMP', fraction: data.weatherTempMin / 40 };
+    case 'weatherMax':
+      return { value: `${data.weatherTempMax}°`, unit: '', label: 'MAX TEMP', fraction: data.weatherTempMax / 40 };
+    case 'humidity':
+      return { value: `${data.humidity}%`, unit: '', label: 'HUMIDITY', fraction: data.humidity / 100 };
+    case 'uvIndex':
+      return { value: String(data.uvIndex), unit: ' UV', label: 'UV INDEX', fraction: data.uvIndex / 11 };
+    case 'pai':
+      return { value: String(data.pai), unit: '', label: 'PAI', fraction: data.pai / 100 };
+    case 'spo2':
+      return { value: `${data.spo2}%`, unit: '', label: 'SPO2', fraction: data.spo2 / 100 };
+    case 'stress':
+      return { value: String(data.stress), unit: '', label: 'STRESS', fraction: data.stress / 100 };
+    case 'standHours':
+      return { value: String(data.standHours), unit: '/12', label: 'STAND', fraction: data.standHours / 12 };
+    case 'sleepScore':
+      return { value: String(data.sleepScore), unit: '', label: 'SLEEP SCORE', fraction: data.sleepScore / 100 };
+    case 'sleepDuration': {
+      const h = Math.floor(data.sleepMinutes / 60);
+      const m = data.sleepMinutes % 60;
+      return { value: `${h}:${pad(m)}`, unit: ' H', label: 'SLEEP', fraction: data.sleepMinutes / 480 };
+    }
+    case 'floors':
+      return { value: String(data.floors), unit: ' FL', label: 'FLOORS', fraction: data.floors / 20 };
   }
 }
 
@@ -61,5 +86,16 @@ export const DATA_SOURCES: { value: DataSource; label: string }[] = [
   { value: 'battery', label: 'Battery' },
   { value: 'calories', label: 'Calories' },
   { value: 'distance', label: 'Distance' },
-  { value: 'weather', label: 'Weather' },
+  { value: 'weather', label: 'Temperature' },
+  { value: 'weatherMin', label: 'Min temperature' },
+  { value: 'weatherMax', label: 'Max temperature' },
+  { value: 'humidity', label: 'Humidity' },
+  { value: 'uvIndex', label: 'UV index' },
+  { value: 'pai', label: 'PAI' },
+  { value: 'spo2', label: 'SpO2' },
+  { value: 'stress', label: 'Stress' },
+  { value: 'standHours', label: 'Stand hours' },
+  { value: 'sleepScore', label: 'Sleep score' },
+  { value: 'sleepDuration', label: 'Sleep duration' },
+  { value: 'floors', label: 'Floors climbed' },
 ];
