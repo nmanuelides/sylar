@@ -54,6 +54,85 @@ function cleanupOld() {
   }
 }
 
+// Google serves plain TrueType only to very old browsers — modern UAs get
+// woff/woff2, which Zepp OS's font renderer doesn't understand.
+const OLD_UA = 'Mozilla/5.0 (Linux; U; Android 2.2)';
+
+async function fetchGoogleFontTtf(family, weight) {
+  const css = await fetch(
+    `https://fonts.googleapis.com/css2?family=${encodeURIComponent(family)}:wght@${weight}&display=swap`,
+    { headers: { 'User-Agent': OLD_UA } },
+  ).then((r) => {
+    if (!r.ok) throw new Error(`fonts.googleapis.com ${r.status}`);
+    return r.text();
+  });
+  const match = css.match(/url\(([^)]+)\)\s*format\('truetype'\)/);
+  if (!match) throw new Error(`no truetype src for ${family} ${weight}`);
+  const buf = await fetch(match[1]).then((r) => {
+    if (!r.ok) throw new Error(`fonts.gstatic.com ${r.status}`);
+    return r.arrayBuffer();
+  });
+  return Buffer.from(buf);
+}
+
+/**
+ * Downloads every font listed in the project's google-fonts.json (written by
+ * the Sylar exporter) into place. Fonts that fail to fetch (offline build
+ * server, family typo, etc.) are stripped from watchface/index.js's SPEC so
+ * the widget falls back to the system font instead of referencing a missing
+ * file — better a wrong font than a build the watch refuses to install.
+ */
+async function resolveGoogleFonts(projectDir) {
+  const manifestPath = path.join(projectDir, 'google-fonts.json');
+  if (!fs.existsSync(manifestPath)) return;
+  const needs = JSON.parse(fs.readFileSync(manifestPath, 'utf8'));
+  const failedPaths = [];
+  for (const need of needs) {
+    try {
+      const ttf = await fetchGoogleFontTtf(need.family, need.weight);
+      const dest = path.join(projectDir, need.path);
+      fs.mkdirSync(path.dirname(dest), { recursive: true });
+      fs.writeFileSync(dest, ttf);
+      console.log(`  font ok: ${need.family} ${need.weight} -> ${need.path}`);
+    } catch (err) {
+      console.warn(`  font FAILED: ${need.family} ${need.weight}: ${err.message}`);
+      // path as it appears inside the generated index.js (relative to assets dir)
+      failedPaths.push(need.path.replace(/^assets\/[^/]+\//, ''));
+    }
+  }
+  if (failedPaths.length === 0) return;
+  const indexPath = path.join(projectDir, 'watchface', 'index.js');
+  const src = fs.readFileSync(indexPath, 'utf8');
+  const marker = 'const SPEC = ';
+  const start = src.indexOf(marker);
+  if (start === -1) return;
+  const jsonStart = start + marker.length;
+  // brace-counting, not a regex, so deeply nested JSON isn't truncated at the first '}'
+  let depth = 0;
+  let end = -1;
+  for (let i = jsonStart; i < src.length; i++) {
+    if (src[i] === '{') depth++;
+    else if (src[i] === '}') {
+      depth--;
+      if (depth === 0) {
+        end = i + 1;
+        break;
+      }
+    }
+  }
+  if (end === -1) return;
+  try {
+    const spec = JSON.parse(src.slice(jsonStart, end));
+    for (const t of spec.texts || []) {
+      if (failedPaths.includes(t.font)) delete t.font;
+    }
+    const patched = src.slice(0, jsonStart) + JSON.stringify(spec, null, 2) + src.slice(end);
+    fs.writeFileSync(indexPath, patched);
+  } catch (err) {
+    console.warn(`  could not patch missing fonts out of index.js: ${err.message}`);
+  }
+}
+
 function runZeus(cwd) {
   return new Promise((resolve, reject) => {
     execFile(
@@ -120,6 +199,7 @@ app.post('/api/build', async (req, res) => {
       if (!name.endsWith('/')) fs.writeFileSync(target, data);
     }
     console.log(`[${id}] ${mode} build…`);
+    await resolveGoogleFonts(projectDir);
     const zabPath = await runZeus(projectDir);
     const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`)
       .replace(/\/$/, '');

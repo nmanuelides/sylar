@@ -54,18 +54,41 @@ function tryCall(obj, names) {
   return null
 }
 
+// Best-effort field finder: Zepp's Weather return shape has drifted across
+// API versions/devices, so search shallowly by key name instead of trusting
+// one hardcoded path.
+function findField(obj, names, depth) {
+  if (!obj || typeof obj !== 'object' || depth > 3) return null
+  for (let i = 0; i < names.length; i++) {
+    const v = obj[names[i]]
+    if (typeof v === 'number') return v
+  }
+  for (const key in obj) {
+    const v = obj[key]
+    if (v && typeof v === 'object') {
+      const found = findField(v, names, depth + 1)
+      if (found != null) return found
+    }
+  }
+  return null
+}
+
 function weatherInfo() {
   try {
     const w = sensor('Weather')
     if (!w) return {}
     const f = tryCall(w, ['getForecastWeather', 'getForecast'])
-    const today = f && f.forecastData && f.forecastData.data && f.forecastData.data[0]
-    const cur = f && f.tempInfo ? num(f.tempInfo.temperature) : null
+    if (!f) return {}
+    const list =
+      (f.forecastData && (f.forecastData.data || f.forecastData)) ||
+      f.forecast ||
+      f.dailyForecast
+    const today = Array.isArray(list) ? list[0] : null
     return {
-      cur: cur,
-      min: today ? num(today.low) : null,
-      max: today ? num(today.high) : null,
-      index: today ? num(today.index) : null,
+      cur: findField(f, ['current', 'temperature', 'temp', 'curTemp']),
+      min: findField(today || f, ['low', 'tempLow', 'min', 'minTemp']),
+      max: findField(today || f, ['high', 'tempHigh', 'max', 'maxTemp']),
+      index: findField(today || f, ['index', 'weatherType', 'condition', 'weather']),
     }
   } catch (e) {
     return {}
