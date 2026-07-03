@@ -8,11 +8,13 @@ touch Node or a terminal; only whoever hosts this server does.
 
 ```bash
 npm install -g @zeppos/zeus-cli @babel/core
-zeus login          # one-time: Zepp developer account (free) — required for QR installs
 cd server
 npm install
 npm start           # listens on :8787
 ```
+
+No Zepp account is needed — anonymous preview uploads work. If Zepp ever starts
+returning 401 on uploads, run `zeus login` once on this machine.
 
 The QR flow runs `zeus preview`, which uploads the compiled package to **Zepp's own
 cloud** and returns their download URL — the only QR format the Zepp app scanner
