@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { AnimatePresence, motion } from 'framer-motion';
 import type { ProjectSummary } from '@/types/watchface';
@@ -11,6 +11,7 @@ import {
   saveProject,
 } from '@/services/projectService';
 import { supabaseConfigured } from '@/lib/supabase';
+import { parseProjectFile } from '@/lib/importProject';
 import { PREVIEW_DATA } from '@/store/liveDataStore';
 import { toast } from '@/store/toastStore';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
@@ -69,8 +70,22 @@ function NewWatchfaceModal({
 
 export function MyWatchfacesPage() {
   const navigate = useNavigate();
+  const setProject = useEditor((s) => s.setProject);
   const [projects, setProjects] = useState<ProjectSummary[] | null>(null);
   const [modalOpen, setModalOpen] = useState(false);
+  const importRef = useRef<HTMLInputElement>(null);
+
+  const importFile = async (file: File) => {
+    try {
+      const project = parseProjectFile(await file.text());
+      await saveProject(project);
+      setProject(project);
+      toast(`Imported “${project.name}”`, 'success');
+      navigate(`/create/${project.id}`);
+    } catch (err) {
+      toast(`Import failed: ${err instanceof Error ? err.message : 'unknown error'}`, 'error');
+    }
+  };
 
   const refresh = () => {
     listProjects()
@@ -111,10 +126,27 @@ export function MyWatchfacesPage() {
               : 'Stored in this browser — add Supabase keys to sync across devices.'}
           </p>
         </div>
-        <button className="btn btn--primary" onClick={() => setModalOpen(true)}>
-          <Svg d={UI_ICONS.plus} size={14} />
-          New watchface
-        </button>
+        <div className="page__header-actions">
+          <input
+            ref={importRef}
+            type="file"
+            accept=".json,application/json"
+            hidden
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) importFile(file);
+              e.target.value = '';
+            }}
+          />
+          <button className="btn btn--outline" onClick={() => importRef.current?.click()}>
+            <Svg d={UI_ICONS.upload} size={14} />
+            Import
+          </button>
+          <button className="btn btn--primary" onClick={() => setModalOpen(true)}>
+            <Svg d={UI_ICONS.plus} size={14} />
+            New watchface
+          </button>
+        </div>
       </motion.header>
 
       <div className="faces-grid">

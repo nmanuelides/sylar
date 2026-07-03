@@ -35,6 +35,12 @@
     }
   }
 
+  &__header-actions {
+    display: flex;
+    gap: 10px;
+    flex-wrap: wrap;
+  }
+
   &__loading {
     color: $text-3;
     text-align: center;
