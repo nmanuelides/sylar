@@ -61,15 +61,18 @@ export function EditorPage() {
       <RightPanel />
       <PreviewModal />
       <ExportModal />
-      {/* Hidden render used for save thumbnails */}
-      <div className="offscreen" id="thumb-render" style={{ width: 240, height: (240 * device.height) / device.width }}>
-        <WatchfaceSVG
-          device={device}
-          elements={project.normal}
-          background={project.backgroundColor}
-          data={PREVIEW_DATA}
-          width={240}
-        />
+      {/* Hidden render used for save thumbnails. The captured node must NOT carry
+          the offscreen positioning itself — html-to-image clones its computed style. */}
+      <div className="offscreen">
+        <div id="thumb-render" style={{ width: 240, height: (240 * device.height) / device.width }}>
+          <WatchfaceSVG
+            device={device}
+            elements={project.normal}
+            background={project.backgroundColor}
+            data={PREVIEW_DATA}
+            width={240}
+          />
+        </div>
       </div>
     </motion.div>
   );
