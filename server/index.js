@@ -79,10 +79,20 @@ function runZeus(cwd) {
  * developer-mode scanner installs zpkd1://<host>/<path> QR links by
  * downloading the .zpk over plain HTTPS — no Zepp cloud, no account.
  */
-function extractZpk(zabPath) {
+function extractZpk(zabPath, resolution) {
   const bundle = unzipSync(new Uint8Array(fs.readFileSync(zabPath)));
   const manifest = JSON.parse(Buffer.from(bundle['manifest.json']).toString('utf8'));
-  const entry = manifest.zpks && manifest.zpks[0];
+  const zpks = manifest.zpks || [];
+  let entry = zpks[0];
+  if (resolution) {
+    const match = zpks.find((z) =>
+      (z.platforms || []).some((p) => p.screenResolution === resolution),
+    );
+    if (match) entry = match;
+    else if (zpks.length > 1) {
+      console.warn(`no zpk matches ${resolution}; falling back to ${entry && entry.name}`);
+    }
+  }
   if (!entry || !bundle[entry.name]) {
     throw new Error('.zab bundle contains no .zpk package');
   }
@@ -114,7 +124,7 @@ app.post('/api/build', async (req, res) => {
     const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`)
       .replace(/\/$/, '');
     if (mode === 'qr') {
-      const zpk = extractZpk(zabPath);
+      const zpk = extractZpk(zabPath, req.query.res);
       const artifactName = `${id}.zpk`;
       fs.writeFileSync(path.join(ARTIFACTS, artifactName), zpk);
       // the Zepp app fetches zpkd1:// links over standard HTTPS —

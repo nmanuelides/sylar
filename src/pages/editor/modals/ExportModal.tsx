@@ -35,7 +35,9 @@ export function ExportModal() {
       setInstallStep('Rendering…');
       const { zip } = await generateZeppProject(project, setInstallStep);
       setInstallStep('Compiling on server…');
-      const res = await fetch(`${buildServer}/api/build?mode=qr`, {
+      const res = await fetch(
+        `${buildServer}/api/build?mode=qr&res=${device.width}x${device.height}`,
+        {
         method: 'POST',
         headers: { 'Content-Type': 'application/zip' },
         body: zip as unknown as BodyInit,

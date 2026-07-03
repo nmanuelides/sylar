@@ -22,6 +22,25 @@ export interface ZeppExportResult {
   warnings: string[];
 }
 
+/**
+ * Official deviceSource IDs per model (docs.zepp.com device list).
+ * Explicit sources force zeus to build for exactly this device — with a
+ * screen-type wildcard ({st:'r'}) it builds every round device and the
+ * wrong-resolution package can end up installed (global misalignment).
+ */
+const DEVICE_SOURCES: Record<string, number[]> = {
+  balance: [8519936, 8519937, 8519939],
+  balance2: [9568512, 9568513, 9568515],
+  // Balance 3 isn't in Zepp's public device list yet — Balance 2 IDs (same panel)
+  balance3: [9568512, 9568513, 9568515],
+  gtr4: [7930112, 7930113, 7864577],
+  active2: [8913152, 8913153, 8913155, 8913159, 10092800, 10092801, 10092803, 10092807],
+  trex3: [8716544, 8716545, 8716547],
+  'cheetah-pro': [8126720, 8126721],
+  gts4: [7995648, 7995649],
+  bip5: [8454400, 8454401],
+};
+
 type FileMap = Record<string, Uint8Array>;
 
 interface TextSpec {
@@ -81,9 +100,18 @@ export async function generateZeppProject(
 ): Promise<ZeppExportResult> {
   const warnings: string[] = [];
   const device = getDevice(project.deviceId);
+  if (device.id === 'balance3') {
+    warnings.push(
+      'Amazfit Balance 3 is not in the Zepp device list yet — exported with Balance 2 device IDs.',
+    );
+  }
   const st = device.shape === 'round' ? 'r' : 's';
   const targetKey = device.id;
-  const assetsDir = `assets/${targetKey}.${st}`;
+  // Explicit-deviceSource targets resolve assets by plain target key;
+  // screen-type wildcard targets use the `<key>.<st>` convention.
+  const assetsDir = DEVICE_SOURCES[device.id]
+    ? `assets/${targetKey}`
+    : `assets/${targetKey}.${st}`;
   const files: FileMap = {};
 
   const customFontPath = (family: string): string | undefined => {
@@ -437,7 +465,9 @@ export async function generateZeppProject(
           // lockscreen: 1 enables the Always-On Display rendering of this page
           watchface: { path: 'watchface/index', main: 1, editable: 0, lockscreen: hasAod ? 1 : 0 },
         },
-        platforms: [{ st }],
+        platforms: DEVICE_SOURCES[device.id]
+          ? DEVICE_SOURCES[device.id].map((deviceSource) => ({ deviceSource }))
+          : [{ st }],
         designWidth: device.width,
       },
     },
