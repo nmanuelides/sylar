@@ -54,7 +54,15 @@ function textParts(el: ComplicationElement) {
   };
 }
 
-function DateCard({ el, data }: { el: ComplicationElement; data: LiveData }) {
+function DateCard({
+  el,
+  data,
+  staticOnly,
+}: {
+  el: ComplicationElement;
+  data: LiveData;
+  staticOnly?: boolean;
+}) {
   const s = Math.min(el.width, el.height);
   const { value, label } = textParts(el);
   const w = s * 0.82;
@@ -77,37 +85,49 @@ function DateCard({ el, data }: { el: ComplicationElement; data: LiveData }) {
         stroke={el.accentColor}
         strokeWidth={Math.max(1, s * 0.014)}
       />
-      <text
-        x={label.dx}
-        y={-h / 2 + headerH / 2 + label.dy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill={el.labelColor ?? el.accentColor}
-        fontFamily={label.font}
-        fontWeight={600}
-        fontSize={h * 0.17 * label.scale}
-        letterSpacing={s * 0.01}
-      >
-        {WEEKDAYS[data.now.getDay()]}
-      </text>
-      <text
-        x={value.dx}
-        y={headerH / 2 + h * 0.02 + value.dy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill={value.color}
-        fontFamily={value.font}
-        fontWeight={700}
-        fontSize={h * 0.4 * value.scale}
-      >
-        {data.now.getDate()}
-      </text>
+      {!staticOnly && (
+        <>
+          <text
+            x={label.dx}
+            y={-h / 2 + headerH / 2 + label.dy}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={el.labelColor ?? el.accentColor}
+            fontFamily={label.font}
+            fontWeight={600}
+            fontSize={h * 0.17 * label.scale}
+            letterSpacing={s * 0.01}
+          >
+            {WEEKDAYS[data.now.getDay()]}
+          </text>
+          <text
+            x={value.dx}
+            y={headerH / 2 + h * 0.02 + value.dy}
+            textAnchor="middle"
+            dominantBaseline="central"
+            fill={value.color}
+            fontFamily={value.font}
+            fontWeight={700}
+            fontSize={h * 0.4 * value.scale}
+          >
+            {data.now.getDate()}
+          </text>
+        </>
+      )}
     </g>
   );
 }
 
-function Complication({ el, data }: { el: ComplicationElement; data: LiveData }) {
-  if (el.kind === 'date') return <DateCard el={el} data={data} />;
+function Complication({
+  el,
+  data,
+  staticOnly,
+}: {
+  el: ComplicationElement;
+  data: LiveData;
+  staticOnly?: boolean;
+}) {
+  if (el.kind === 'date') return <DateCard el={el} data={data} staticOnly={staticOnly} />;
   const s = Math.min(el.width, el.height);
   const { value, label } = textParts(el);
   const source = el.kind === 'weather' ? 'weather' : el.kind;
@@ -127,32 +147,36 @@ function Complication({ el, data }: { el: ComplicationElement; data: LiveData })
             stroke="rgba(255,255,255,0.14)"
             strokeWidth={ringW}
           />
-          <circle
-            r={r}
-            fill="none"
-            stroke={el.accentColor}
-            strokeWidth={ringW}
-            strokeLinecap="round"
-            strokeDasharray={`${circumference * fraction} ${circumference}`}
-            transform="rotate(-90)"
-          />
+          {!staticOnly && (
+            <circle
+              r={r}
+              fill="none"
+              stroke={el.accentColor}
+              strokeWidth={ringW}
+              strokeLinecap="round"
+              strokeDasharray={`${circumference * fraction} ${circumference}`}
+              transform="rotate(-90)"
+            />
+          )}
         </>
       )}
       {el.showIcon && glyph && (
         <GlyphIcon glyph={glyph} size={s * 0.2} y={-s * 0.235} fill={el.accentColor} />
       )}
-      <text
-        x={value.dx}
-        y={s * 0.035 + value.dy}
-        textAnchor="middle"
-        dominantBaseline="central"
-        fill={value.color}
-        fontFamily={value.font}
-        fontWeight={700}
-        fontSize={s * 0.24 * value.scale}
-      >
-        {info.value}
-      </text>
+      {!staticOnly && (
+        <text
+          x={value.dx}
+          y={s * 0.035 + value.dy}
+          textAnchor="middle"
+          dominantBaseline="central"
+          fill={value.color}
+          fontFamily={value.font}
+          fontWeight={700}
+          fontSize={s * 0.24 * value.scale}
+        >
+          {info.value}
+        </text>
+      )}
       {el.showLabel && (
         <text
           x={label.dx}
@@ -362,7 +386,15 @@ function ImageEl({ el }: { el: ImageElement }) {
 /* Progress bars                                                       */
 /* ------------------------------------------------------------------ */
 
-function ProgressBar({ el, data }: { el: ProgressBarElement; data: LiveData }) {
+function ProgressBar({
+  el,
+  data,
+  staticOnly,
+}: {
+  el: ProgressBarElement;
+  data: LiveData;
+  staticOnly?: boolean;
+}) {
   const info = sourceValue(el.source, data);
   const fraction = Math.max(0, Math.min(1, info.fraction));
   const cap = el.rounded ? 'round' : 'butt';
@@ -373,14 +405,16 @@ function ProgressBar({ el, data }: { el: ProgressBarElement; data: LiveData }) {
     return (
       <g>
         <rect x={-w / 2} y={-t / 2} width={w} height={t} rx={rx} fill={el.trackColor} />
-        <rect
-          x={-w / 2}
-          y={-t / 2}
-          width={Math.max(t, w * fraction)}
-          height={t}
-          rx={rx}
-          fill={el.fillColor}
-        />
+        {!staticOnly && (
+          <rect
+            x={-w / 2}
+            y={-t / 2}
+            width={Math.max(t, w * fraction)}
+            height={t}
+            rx={rx}
+            fill={el.fillColor}
+          />
+        )}
       </g>
     );
   }
@@ -396,7 +430,7 @@ function ProgressBar({ el, data }: { el: ProgressBarElement; data: LiveData }) {
         strokeWidth={el.thickness}
         strokeLinecap={cap}
       />
-      {fraction > 0.005 && (
+      {!staticOnly && fraction > 0.005 && (
         <path
           d={describeArc(0, 0, r, start, start + sweep * fraction)}
           fill="none"
@@ -405,7 +439,7 @@ function ProgressBar({ el, data }: { el: ProgressBarElement; data: LiveData }) {
           strokeLinecap={cap}
         />
       )}
-      {el.showValue && (
+      {!staticOnly && el.showValue && (
         <text
           textAnchor="middle"
           dominantBaseline="central"
@@ -494,10 +528,19 @@ function TickMarks({ el }: { el: TickMarksElement }) {
 /* Dispatcher                                                          */
 /* ------------------------------------------------------------------ */
 
-export function ElementRenderer({ el, data }: { el: WatchElement; data: LiveData }) {
+export function ElementRenderer({
+  el,
+  data,
+  staticOnly,
+}: {
+  el: WatchElement;
+  data: LiveData;
+  /** Export mode: draw only the non-live parts (tracks, chrome) of dynamic elements */
+  staticOnly?: boolean;
+}) {
   switch (el.type) {
     case 'complication':
-      return <Complication el={el} data={data} />;
+      return <Complication el={el} data={data} staticOnly={staticOnly} />;
     case 'hand':
       return <Hand el={el} />;
     case 'digitalTime':
@@ -511,7 +554,7 @@ export function ElementRenderer({ el, data }: { el: WatchElement; data: LiveData
     case 'weatherIcon':
       return <WeatherIcon el={el} data={data} />;
     case 'progressBar':
-      return <ProgressBar el={el} data={data} />;
+      return <ProgressBar el={el} data={data} staticOnly={staticOnly} />;
     case 'tickMarks':
       return <TickMarks el={el} />;
     case 'image':
@@ -527,7 +570,15 @@ export function elementTimeRotation(el: WatchElement, now: Date): number {
 }
 
 /** Positions + rotates an element; hands add live time rotation. */
-export function ElementNode({ el, data }: { el: WatchElement; data: LiveData }) {
+export function ElementNode({
+  el,
+  data,
+  staticOnly,
+}: {
+  el: WatchElement;
+  data: LiveData;
+  staticOnly?: boolean;
+}) {
   if (!el.visible) return null;
   const rotation = el.rotation + elementTimeRotation(el, data.now);
   const pivot = pivotOffset(el);
@@ -536,7 +587,7 @@ export function ElementNode({ el, data }: { el: WatchElement; data: LiveData }) 
       transform={`translate(${el.x} ${el.y}) rotate(${rotation} ${pivot.x} ${pivot.y})`}
       opacity={el.opacity}
     >
-      <ElementRenderer el={el} data={data} />
+      <ElementRenderer el={el} data={data} staticOnly={staticOnly} />
     </g>
   );
 }

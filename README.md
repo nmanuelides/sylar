@@ -79,9 +79,17 @@ src/
 └── types/               # Shared TypeScript models
 ```
 
+## Install on a real watch
+
+Export → **Zepp OS project (.zip)** produces a ready-to-build watchface source project:
+static content is baked pixel-perfect into device-resolution images, hands become
+`TIME_POINTER` widgets, and live text/rings are driven by defensive sensor code.
+Unzip it, then `npm i -g @zeppos/zeus-cli`, `zeus login`, and `zeus preview` — scan the
+QR with the Zepp app in developer mode. See the README inside the export for details.
+
 ## Roadmap
 
-- Compile to installable Amazfit `.bin` / `.wfz`
+- Cloud builds — one-click "Install on watch" QR without Node/CLI
 - Supabase auth + per-user libraries
 - Community gallery (publish, browse, remix)
 - Import `.sylar.json` projects

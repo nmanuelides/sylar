@@ -56,6 +56,17 @@
     border: 1px solid $line-soft;
     border-radius: $radius;
 
+    &--primary {
+      border-color: rgba(79, 195, 255, 0.45);
+      box-shadow: 0 0 16px rgba(30, 155, 255, 0.12);
+    }
+
+    code {
+      color: $accent-bright;
+      font-family: $font-mono;
+      font-size: 11px;
+    }
+
     h4 {
       font-family: $font-ui;
       font-size: 13px;

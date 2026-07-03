@@ -5,6 +5,7 @@ import { useEditor } from '@/store/editorStore';
 import { PREVIEW_DATA } from '@/store/liveDataStore';
 import { toast } from '@/store/toastStore';
 import { downloadDataUrl, downloadJson, slugify } from '@/lib/download';
+import { generateZeppProject } from '@/export/zepp/generator';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { Modal, Svg, UI_ICONS } from '@/components/common/Ui';
 import './modals.scss';
@@ -17,6 +18,29 @@ export function ExportModal() {
   const normalRef = useRef<HTMLDivElement>(null);
   const aodRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
+  const [zeppStep, setZeppStep] = useState<string | null>(null);
+
+  const exportZepp = async () => {
+    setZeppStep('Preparing…');
+    try {
+      const { zip, filename, warnings } = await generateZeppProject(project, setZeppStep);
+      const url = URL.createObjectURL(
+        new Blob([zip as unknown as BlobPart], { type: 'application/zip' }),
+      );
+      downloadDataUrl(url, filename);
+      setTimeout(() => URL.revokeObjectURL(url), 5000);
+      toast(
+        warnings.length
+          ? `Zepp OS project exported with ${warnings.length} warning(s) — see README.md inside`
+          : 'Zepp OS project exported',
+        warnings.length ? 'info' : 'success',
+      );
+    } catch (err) {
+      toast(`Export failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error');
+    } finally {
+      setZeppStep(null);
+    }
+  };
 
   const exportPng = async (aod: boolean) => {
     const node = (aod ? aodRef : normalRef).current;
@@ -82,9 +106,23 @@ export function ExportModal() {
             PNG
           </button>
         </div>
+        <div className="export__row export__row--primary">
+          <div>
+            <h4>Zepp OS project (.zip)</h4>
+            <p>
+              Ready-to-build watchface source for {device.name}. Unzip, run{' '}
+              <code>zeus preview</code>, scan the QR with the Zepp app (developer mode) — see the
+              README inside.
+            </p>
+          </div>
+          <button className="btn btn--primary" disabled={zeppStep !== null} onClick={exportZepp}>
+            <Svg d={UI_ICONS.watch} size={13} />
+            {zeppStep ?? 'Zepp OS'}
+          </button>
+        </div>
         <p className="export__note">
-          Compiling to an installable Amazfit <code>.bin</code>/<code>.wfz</code> is on the roadmap —
-          the JSON format keeps every property needed for it.
+          Live values (time, health, weather) are rendered by the watch; everything static is baked
+          pixel-perfect at device resolution. Custom uploaded fonts ship with the project.
         </p>
       </div>
 

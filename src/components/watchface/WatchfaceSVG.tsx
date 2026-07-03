@@ -11,6 +11,8 @@ interface Props {
   className?: string;
   /** Dim overlay used to hint at AOD brightness limits */
   aodDim?: boolean;
+  /** Export mode: draw only the non-live parts of dynamic elements */
+  staticOnly?: boolean;
 }
 
 export function deviceShapePath(device: Device): JSX.Element {
@@ -41,6 +43,7 @@ export function WatchfaceSVG({
   width = '100%',
   className,
   aodDim = false,
+  staticOnly = false,
 }: Props) {
   const rawId = useId();
   const clipId = `wfclip-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
@@ -57,7 +60,7 @@ export function WatchfaceSVG({
       <g clipPath={`url(#${clipId})`}>
         <rect width={device.width} height={device.height} fill={background} />
         {elements.map((el) => (
-          <ElementNode key={el.id} el={el} data={data} />
+          <ElementNode key={el.id} el={el} data={data} staticOnly={staticOnly} />
         ))}
         {aodDim && (
           <rect
