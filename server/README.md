@@ -8,10 +8,15 @@ touch Node or a terminal; only whoever hosts this server does.
 
 ```bash
 npm install -g @zeppos/zeus-cli @babel/core
+zeus login          # one-time: Zepp developer account (free) — required for QR installs
 cd server
 npm install
-npm start          # listens on :8787
+npm start           # listens on :8787
 ```
+
+The QR flow runs `zeus preview`, which uploads the compiled package to **Zepp's own
+cloud** and returns their download URL — the only QR format the Zepp app scanner
+recognizes. It also means phones don't need network access to this server at all.
 
 Point the studio at it via `.env`:
 
@@ -33,6 +38,7 @@ VITE_BUILD_SERVER_URL=http://YOUR_SERVER:8787
 
 ## API
 
-- `POST /api/build` — body: exported project zip (`application/zip`) → `{ url, size }`
-- `GET /dl/<id>.zab` — the compiled package (artifacts kept ~1 hour)
+- `POST /api/build?mode=qr` — body: exported project zip → `{ url, cloud: true }` (Zepp-cloud QR URL)
+- `POST /api/build?mode=file` — same body → `{ url, size }` (locally hosted `.zab`)
+- `GET /dl/<id>.zab` — compiled packages from `mode=file` (kept ~1 hour)
 - `GET /api/health` — liveness probe

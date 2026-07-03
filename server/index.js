@@ -74,6 +74,42 @@ function runZeus(cwd) {
   });
 }
 
+/**
+ * Runs `zeus preview`: builds, uploads the package to Zepp's cloud (needs a
+ * one-time `zeus login` on this machine) and resolves with the QR URL that the
+ * Zepp app scanner actually recognizes.
+ */
+function runZeusPreview(cwd, deviceName) {
+  return new Promise((resolve, reject) => {
+    // forward slashes: NODE_OPTIONS mangles quoted backslash paths on Windows
+    const shim = path.join(__dirname, 'qr-shim.js').replace(/\\/g, '/');
+    // -t skips the interactive device picker; quotes survive shell:true arg joining
+    const args = deviceName ? ['preview', '-t', `"${deviceName}"`] : ['preview'];
+    const child = execFile(
+      ZEUS_CMD,
+      args,
+      {
+        cwd,
+        shell: true,
+        timeout: 8 * 60 * 1000,
+        windowsHide: true,
+        env: { ...process.env, NODE_OPTIONS: `--require ${shim}` },
+      },
+      (err, stdout, stderr) => {
+        const out = `${stdout}\n${stderr}`;
+        const match = out.match(/SYLAR_QR_URL::(\S+)/);
+        if (match) return resolve(match[1]);
+        const hint = /login/i.test(out)
+          ? ' — run `zeus login` once on the build server machine.'
+          : '';
+        reject(new Error(`zeus preview produced no QR URL${hint}\n${out.slice(-2000)}`));
+      },
+    );
+    // zeus may wait on interactive prompts in edge cases; never let it hang on stdin
+    child.stdin?.end();
+  });
+}
+
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
 
 app.post('/api/build', async (req, res) => {
@@ -81,6 +117,9 @@ app.post('/api/build', async (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'Send the exported project zip as application/zip' });
   }
+  // mode=qr (default): zeus preview → Zepp-cloud QR URL the Zepp app recognizes.
+  // mode=file: zeus build → locally hosted .zab download.
+  const mode = req.query.mode === 'file' ? 'file' : 'qr';
   const id = crypto.randomBytes(8).toString('hex');
   const projectDir = path.join(ROOT, id);
   try {
@@ -91,7 +130,12 @@ app.post('/api/build', async (req, res) => {
       fs.mkdirSync(path.dirname(target), { recursive: true });
       if (!name.endsWith('/')) fs.writeFileSync(target, data);
     }
-    console.log(`[${id}] building…`);
+    console.log(`[${id}] ${mode} build…`);
+    if (mode === 'qr') {
+      const url = await runZeusPreview(projectDir, req.query.device);
+      console.log(`[${id}] done → ${url}`);
+      return res.json({ url, cloud: true });
+    }
     const zabPath = await runZeus(projectDir);
     const artifactName = `${id}.zab`;
     fs.copyFileSync(zabPath, path.join(ARTIFACTS, artifactName));

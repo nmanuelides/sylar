@@ -8,6 +8,8 @@ export interface Device {
   height: number;
   shape: DeviceShape;
   cornerRadius?: number;
+  /** Device display name in the Zepp OS toolchain (zeus -t), when different from name */
+  zeppName?: string;
 }
 
 export type DataSource =
