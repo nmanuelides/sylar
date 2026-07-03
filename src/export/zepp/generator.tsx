@@ -350,8 +350,9 @@ export async function generateZeppProject(
               r: Math.round(s / 2 - ringW / 2 - 1),
               width: Math.round(ringW),
               color: cssToZeppColor(el.accentColor),
-              start: 0,
-              end: 360,
+              // Zepp arcs: 0° = 3 o'clock; Sylar: 0° = 12 o'clock
+              start: -90,
+              end: 270,
               source: complicationSource(el.kind),
               rounded: true,
               aod,
@@ -367,8 +368,9 @@ export async function generateZeppProject(
             r: Math.round(r),
             width: Math.round(el.thickness),
             color: cssToZeppColor(el.fillColor),
-            start: el.startAngle,
-            end: el.startAngle + Math.max(10, Math.min(360, el.sweep)),
+            // Zepp arcs: 0° = 3 o'clock; Sylar: 0° = 12 o'clock → shift -90
+            start: el.startAngle - 90,
+            end: el.startAngle - 90 + Math.max(10, Math.min(360, el.sweep)),
             source: el.source,
             rounded: el.rounded,
             aod,
@@ -432,7 +434,8 @@ export async function generateZeppProject(
     targets: {
       [targetKey]: {
         module: {
-          watchface: { path: 'watchface/index', main: 1, editable: 0, lockscreen: 0 },
+          // lockscreen: 1 enables the Always-On Display rendering of this page
+          watchface: { path: 'watchface/index', main: 1, editable: 0, lockscreen: hasAod ? 1 : 0 },
         },
         platforms: [{ st }],
         designWidth: device.width,
