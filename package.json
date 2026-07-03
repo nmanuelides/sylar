@@ -1,0 +1,33 @@
+{
+  "name": "sylar-watchface-studio",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Sylar — a drag & drop watchface studio for Amazfit smartwatches",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@fortawesome/free-solid-svg-icons": "^7.3.0",
+    "@supabase/supabase-js": "^2.45.4",
+    "framer-motion": "^11.11.7",
+    "html-to-image": "^1.11.11",
+    "idb-keyval": "^6.2.6",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-router-dom": "^6.26.2",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@types/node": "^26.1.0",
+    "@types/react": "^18.3.10",
+    "@types/react-dom": "^18.3.0",
+    "@vitejs/plugin-react": "^4.3.2",
+    "sass": "^1.79.4",
+    "typescript": "^5.6.2",
+    "vite": "^5.4.8"
+  }
+}

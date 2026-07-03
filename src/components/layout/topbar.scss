@@ -1,0 +1,129 @@
+@use 'tokens' as *;
+
+.topbar {
+  height: $topbar-h;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  gap: 24px;
+  padding: 0 16px;
+  background: $bg-0;
+  border-bottom: 1px solid $line-soft;
+  z-index: 40;
+
+  &__brand {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-decoration: none;
+    color: $text-1;
+  }
+
+  &__logo {
+    display: inline-flex;
+    color: $accent-bright;
+    filter: drop-shadow(0 0 6px $accent-glow);
+  }
+
+  &__name {
+    font-family: $font-ui;
+    font-size: 16px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    white-space: nowrap;
+
+    em {
+      font-style: normal;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.24em;
+      text-transform: uppercase;
+      color: $accent-bright;
+      margin-left: 6px;
+    }
+  }
+
+  &__nav {
+    display: flex;
+    gap: 4px;
+    flex: 1;
+    justify-content: center;
+    min-width: 0;
+  }
+
+  &__link {
+    position: relative;
+    font-family: $font-ui;
+    font-size: 12px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: $text-2;
+    text-decoration: none;
+    padding: 10px 14px;
+    transition: color 0.15s ease;
+    white-space: nowrap;
+
+    &:hover {
+      color: $text-1;
+    }
+
+    &.is-active {
+      color: $accent-bright;
+    }
+  }
+
+  &__link-underline {
+    position: absolute;
+    left: 10px;
+    right: 10px;
+    bottom: 4px;
+    height: 2px;
+    background: $accent-bright;
+    border-radius: 1px;
+    box-shadow: 0 0 8px $accent-glow;
+  }
+
+  &__actions {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  &__history {
+    display: flex;
+    gap: 2px;
+    margin-right: 4px;
+  }
+
+  &__save {
+    position: relative;
+  }
+
+  &__dirty-dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: $accent-bright;
+    box-shadow: 0 0 6px $accent-glow;
+  }
+
+  @media (max-width: 860px) {
+    gap: 12px;
+
+    &__name em {
+      display: none;
+    }
+
+    &__link {
+      padding: 10px 8px;
+      font-size: 11px;
+    }
+  }
+
+  @media (max-width: 640px) {
+    &__nav {
+      display: none;
+    }
+  }
+}

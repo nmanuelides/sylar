@@ -1,0 +1,146 @@
+@use 'tokens' as *;
+
+.font-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    background: $panel-2;
+    border: 1px solid $line-soft;
+    border-radius: $radius-sm;
+    color: $text-3;
+
+    &:focus-within {
+      border-color: $accent;
+    }
+
+    input {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 9px 0;
+      box-shadow: none !important;
+    }
+  }
+
+  &__count {
+    @include label;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  &__cats {
+    display: flex;
+    gap: 4px;
+    flex-wrap: wrap;
+
+    button {
+      font-family: $font-ui;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: $text-2;
+      padding: 4px 10px;
+      border-radius: 20px;
+      border: 1px solid transparent;
+      transition: all 0.14s ease;
+
+      &:hover {
+        color: $text-1;
+      }
+
+      &.is-active {
+        color: $accent-bright;
+        border-color: rgba(79, 195, 255, 0.4);
+        background: $accent-dim;
+      }
+    }
+  }
+
+  &__preview {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 14px;
+    padding: 12px 14px;
+    background: $panel-2;
+    border: 1px solid rgba(79, 195, 255, 0.35);
+    border-radius: $radius;
+
+    &-sample {
+      font-size: 22px;
+      color: $text-1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .btn {
+      flex-shrink: 0;
+    }
+  }
+
+  &__list {
+    max-height: 42vh;
+    overflow-y: auto;
+    border: 1px solid $line-soft;
+    border-radius: $radius-sm;
+    @include scrollbar;
+  }
+
+  &__row {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    width: 100%;
+    padding: 8px 12px;
+    text-align: left;
+    border-bottom: 1px solid $line-soft;
+    transition: background 0.1s ease;
+
+    &:last-child {
+      border-bottom: none;
+    }
+
+    &:hover {
+      background: $panel-2;
+    }
+
+    &.is-selected {
+      background: $accent-dim;
+    }
+
+    &.is-current .font-picker__row-name {
+      color: $accent-bright;
+    }
+
+    &-name {
+      font-size: 13px;
+      color: $text-1;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &-meta {
+      @include label;
+      font-size: 9px;
+      white-space: nowrap;
+      flex-shrink: 0;
+    }
+  }
+
+  &__more {
+    @include label;
+    font-size: 9px;
+    text-align: center;
+    margin: 0;
+  }
+}

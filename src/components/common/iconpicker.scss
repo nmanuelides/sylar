@@ -1,0 +1,89 @@
+@use 'tokens' as *;
+
+.icon-picker {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+
+  &__search {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    background: $panel-2;
+    border: 1px solid $line-soft;
+    border-radius: $radius-sm;
+    color: $text-3;
+
+    &:focus-within {
+      border-color: $accent;
+    }
+
+    input {
+      flex: 1;
+      background: none;
+      border: none;
+      padding: 9px 0;
+      box-shadow: none !important;
+    }
+  }
+
+  &__count {
+    @include label;
+    font-size: 9px;
+    white-space: nowrap;
+  }
+
+  &__grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(72px, 1fr));
+    gap: 6px;
+    max-height: 50vh;
+    overflow-y: auto;
+    @include scrollbar;
+  }
+
+  &__item {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 4px 8px;
+    border-radius: $radius-sm;
+    border: 1px solid transparent;
+    color: $text-2;
+    transition: color 0.12s ease, border-color 0.12s ease, background 0.12s ease;
+
+    svg {
+      height: 22px;
+      width: auto;
+      max-width: 30px;
+    }
+
+    span {
+      font-size: 9px;
+      color: $text-3;
+      max-width: 100%;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    &:hover {
+      color: $accent-bright;
+      background: $accent-dim;
+      border-color: rgba(79, 195, 255, 0.35);
+
+      span {
+        color: $accent-bright;
+      }
+    }
+  }
+
+  &__more {
+    @include label;
+    font-size: 10px;
+    text-align: center;
+    margin: 0;
+  }
+}

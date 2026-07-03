@@ -1,0 +1,256 @@
+@use 'tokens' as *;
+
+.field-group {
+  padding: 14px 16px;
+  border-bottom: 1px solid $line-soft;
+
+  &__title {
+    @include label;
+    font-size: 10px;
+    color: $accent-bright;
+    margin: 0 0 12px;
+  }
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 9px;
+
+  &:last-child {
+    margin-bottom: 0;
+  }
+
+  &__label {
+    @include label;
+    font-size: 10px;
+    width: 74px;
+    flex-shrink: 0;
+    overflow-wrap: break-word;
+  }
+
+  &__control {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    overflow: hidden;
+
+    > input,
+    > select {
+      width: 100%;
+    }
+  }
+}
+
+.number-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+
+  input {
+    width: 100%;
+    font-family: $font-mono;
+  }
+
+  &__suffix {
+    color: $text-3;
+    font-size: 11px;
+  }
+}
+
+.slider-field {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+
+  input[type='range'] {
+    flex: 1;
+    min-width: 30px;
+    -webkit-appearance: none;
+    appearance: none;
+    height: 4px;
+    padding: 0;
+    background: $panel-3;
+    border: none;
+    border-radius: 2px;
+    cursor: pointer;
+
+    &::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      width: 14px;
+      height: 14px;
+      border-radius: 50%;
+      background: $accent-bright;
+      box-shadow: 0 0 8px $accent-glow;
+      transition: transform 0.12s ease;
+
+      &:hover {
+        transform: scale(1.2);
+      }
+    }
+    &::-moz-range-thumb {
+      width: 14px;
+      height: 14px;
+      border: none;
+      border-radius: 50%;
+      background: $accent-bright;
+    }
+  }
+
+  &__num {
+    width: 44px;
+    flex-shrink: 0;
+    font-family: $font-mono;
+    font-size: 11px;
+    padding: 4px 4px;
+    text-align: right;
+
+    // hide spinners to keep it compact
+    -moz-appearance: textfield;
+    appearance: textfield;
+
+    &::-webkit-outer-spin-button,
+    &::-webkit-inner-spin-button {
+      -webkit-appearance: none;
+      margin: 0;
+    }
+  }
+
+  &__suffix {
+    font-size: 10px;
+    color: $text-3;
+    flex-shrink: 0;
+  }
+}
+
+.color-field {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+
+  &__swatch {
+    position: relative;
+    width: 28px;
+    height: 28px;
+    flex-shrink: 0;
+    border-radius: $radius-sm;
+    border: 1px solid $line;
+    overflow: hidden;
+    cursor: pointer;
+    transition: box-shadow 0.15s ease;
+
+    &:hover {
+      box-shadow: 0 0 10px $accent-glow;
+    }
+
+    input[type='color'] {
+      position: absolute;
+      inset: -6px;
+      width: 40px;
+      height: 40px;
+      padding: 0;
+      border: none;
+      cursor: pointer;
+      opacity: 0;
+    }
+  }
+
+  &__hex {
+    flex: 1;
+    min-width: 0;
+    font-family: $font-mono;
+    font-size: 12px;
+  }
+}
+
+.font-field {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  width: 100%;
+
+  select {
+    flex: 1;
+    min-width: 0;
+  }
+
+  &__browse {
+    flex-shrink: 0;
+    width: 28px;
+    height: 28px;
+    border: 1px solid $line-soft;
+
+    &:hover {
+      border-color: $accent;
+    }
+  }
+}
+
+.mini-switch {
+  width: 34px;
+  height: 18px;
+  padding: 2px;
+  border-radius: 9px;
+  background: $panel-3;
+  border: 1px solid $line;
+  display: inline-flex;
+  justify-content: flex-start;
+  transition: all 0.18s ease;
+
+  span {
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: $text-2;
+    transition: transform 0.18s cubic-bezier(0.3, 1.4, 0.6, 1), background 0.18s ease;
+  }
+
+  &.is-on {
+    background: rgba(30, 155, 255, 0.35);
+    border-color: $accent;
+
+    span {
+      transform: translateX(16px);
+      background: $accent-bright;
+    }
+  }
+}
+
+.segment-field {
+  display: flex;
+  width: 100%;
+  border: 1px solid $line-soft;
+  border-radius: $radius-sm;
+  overflow: hidden;
+
+  button {
+    flex: 1;
+    padding: 6px 4px;
+    font-family: $font-ui;
+    font-size: 10px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: $text-2;
+    background: $panel-2;
+    transition: all 0.14s ease;
+
+    + button {
+      border-left: 1px solid $line-soft;
+    }
+
+    &:hover {
+      color: $text-1;
+    }
+
+    &.is-active {
+      background: $accent-dim;
+      color: $accent-bright;
+    }
+  }
+}

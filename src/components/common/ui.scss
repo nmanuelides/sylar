@@ -1,0 +1,131 @@
+@use 'tokens' as *;
+
+/* Switch */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+
+  &__label {
+    @include label;
+  }
+
+  &__track {
+    display: inline-flex;
+    align-items: center;
+    width: 36px;
+    height: 20px;
+    padding: 2px;
+    border-radius: 10px;
+    background: $panel-3;
+    border: 1px solid $line;
+    transition: background 0.2s ease, border-color 0.2s ease, box-shadow 0.2s ease;
+    justify-content: flex-start;
+  }
+
+  &__thumb {
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: $text-2;
+  }
+
+  &.is-on {
+    .switch__track {
+      background: rgba(30, 155, 255, 0.35);
+      border-color: $accent;
+      box-shadow: 0 0 10px rgba(30, 155, 255, 0.3);
+      justify-content: flex-end;
+    }
+    .switch__thumb {
+      background: $accent-bright;
+    }
+    .switch__label {
+      color: $accent-bright;
+    }
+  }
+}
+
+/* Modal */
+.modal {
+  &__backdrop {
+    position: fixed;
+    inset: 0;
+    z-index: 90;
+    background: rgba(2, 8, 16, 0.72);
+    backdrop-filter: blur(6px);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 24px;
+  }
+
+  &__box {
+    @include panel-box;
+    width: 100%;
+    max-height: 90vh;
+    display: flex;
+    flex-direction: column;
+    box-shadow: 0 24px 80px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(79, 195, 255, 0.08);
+  }
+
+  &__header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 16px 20px;
+    border-bottom: 1px solid $line-soft;
+
+    h2 {
+      @include label;
+      font-size: 13px;
+      color: $accent-bright;
+      margin: 0;
+    }
+  }
+
+  &__body {
+    padding: 20px;
+    overflow-y: auto;
+    @include scrollbar;
+  }
+}
+
+/* Toasts */
+.toasts {
+  position: fixed;
+  bottom: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 120;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+}
+
+.toast {
+  @include panel-box;
+  pointer-events: auto;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 18px;
+  font-family: $font-ui;
+  font-size: 13px;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.5);
+
+  &--success {
+    border-color: rgba(53, 212, 154, 0.5);
+    color: $success;
+  }
+  &--error {
+    border-color: rgba(255, 84, 112, 0.5);
+    color: $danger;
+  }
+  &--info {
+    border-color: rgba(79, 195, 255, 0.4);
+    color: $accent-bright;
+  }
+}

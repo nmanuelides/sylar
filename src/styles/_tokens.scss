@@ -1,0 +1,73 @@
+// Sylar design tokens — dark blueprint theme
+$bg-0: #040d1a;
+$bg-1: #071527;
+$panel: #0a1e37;
+$panel-2: #0d2544;
+$panel-3: #113054;
+$line: #17406b;
+$line-soft: #10314f;
+$accent: #1e9bff;
+$accent-bright: #4fc3ff;
+$accent-dim: rgba(30, 155, 255, 0.14);
+$accent-glow: rgba(79, 195, 255, 0.35);
+$text-1: #eaf6ff;
+$text-2: #8fb3d9;
+$text-3: #547499;
+$danger: #ff5470;
+$success: #35d49a;
+
+$font-ui: 'Chakra Petch', 'Segoe UI', sans-serif;
+$font-body: 'Inter', 'Segoe UI', sans-serif;
+$font-mono: 'Share Tech Mono', monospace;
+
+$radius-sm: 6px;
+$radius: 8px;
+$radius-lg: 12px;
+
+$topbar-h: 56px;
+
+@mixin label {
+  font-family: $font-ui;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: $text-2;
+}
+
+@mixin panel-box {
+  background: $panel;
+  border: 1px solid $line-soft;
+  border-radius: $radius-lg;
+}
+
+@mixin scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: $line transparent;
+
+  &::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+  }
+  &::-webkit-scrollbar-thumb {
+    background: $line;
+    border-radius: 4px;
+  }
+  &::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+@mixin blueprint-bg {
+  background-color: $bg-1;
+  background-image:
+    linear-gradient(rgba(79, 195, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 195, 255, 0.045) 1px, transparent 1px),
+    linear-gradient(rgba(79, 195, 255, 0.09) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79, 195, 255, 0.09) 1px, transparent 1px);
+  background-size:
+    20px 20px,
+    20px 20px,
+    100px 100px,
+    100px 100px;
+}
