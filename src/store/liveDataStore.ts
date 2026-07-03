@@ -12,6 +12,7 @@ export const PREVIEW_DATA: LiveData = {
   weatherTemp: 24,
   weatherTempMin: 18,
   weatherTempMax: 27,
+  weatherCondition: 'partly',
   humidity: 62,
   uvIndex: 5,
   pai: 78,

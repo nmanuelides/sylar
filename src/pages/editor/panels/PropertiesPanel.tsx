@@ -8,6 +8,7 @@ import {
 } from '@/store/editorStore';
 import { DEVICES, getDevice } from '@/data/devices';
 import { nearestWeight, weightsFor } from '@/data/fonts';
+import { WEATHER_CONDITIONS } from '@/data/icons';
 import { DATA_SOURCES } from '@/lib/time';
 import { FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import {
@@ -375,6 +376,25 @@ function ElementProperties({ el }: { el: WatchElement }) {
               })
             }
           />
+        </FieldGroup>
+      )}
+
+      {el.type === 'weatherIcon' && (
+        <FieldGroup title="Weather icon">
+          <SelectField
+            label="Condition"
+            value={el.condition}
+            options={[
+              { value: 'live', label: 'Live weather' },
+              ...WEATHER_CONDITIONS.map((c) => ({ value: c.value, label: c.label })),
+            ]}
+            onChange={(v) => commitPatch({ condition: v })}
+          />
+          <ColorField label="Color" value={el.color} onStart={commit} onChange={(v) => patch({ color: v })} />
+          <p className="props__note">
+            “Live weather” follows the current condition (mocked as partly cloudy in the editor).
+            Pin a condition to preview or force a specific icon.
+          </p>
         </FieldGroup>
       )}
 

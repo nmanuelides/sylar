@@ -132,6 +132,26 @@ export interface NumberElement extends ElementBase {
   showUnit: boolean;
 }
 
+export type WeatherCondition =
+  | 'sunny'
+  | 'partly'
+  | 'cloudy'
+  | 'rain'
+  | 'showers'
+  | 'storm'
+  | 'snow'
+  | 'fog'
+  | 'wind'
+  | 'night'
+  | 'partlyNight';
+
+export interface WeatherIconElement extends ElementBase {
+  type: 'weatherIcon';
+  color: string;
+  /** 'live' follows the watch's weather; any other value pins a fixed condition */
+  condition: WeatherCondition | 'live';
+}
+
 export interface IconElement extends ElementBase {
   type: 'icon';
   /** Font Awesome icon name (or legacy built-in key) */
@@ -205,6 +225,7 @@ export type WatchElement =
   | TextElement
   | NumberElement
   | IconElement
+  | WeatherIconElement
   | ProgressBarElement
   | TickMarksElement
   | ImageElement;
@@ -259,6 +280,7 @@ export interface LiveData {
   weatherTemp: number;
   weatherTempMin: number;
   weatherTempMax: number;
+  weatherCondition: WeatherCondition;
   humidity: number;
   uvIndex: number;
   pai: number;

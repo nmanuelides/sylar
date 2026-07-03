@@ -8,8 +8,12 @@ import { faBolt } from '@fortawesome/free-solid-svg-icons/faBolt';
 import { faCalendarDays } from '@fortawesome/free-solid-svg-icons/faCalendarDays';
 import { faCamera } from '@fortawesome/free-solid-svg-icons/faCamera';
 import { faCloud } from '@fortawesome/free-solid-svg-icons/faCloud';
+import { faCloudBolt } from '@fortawesome/free-solid-svg-icons/faCloudBolt';
+import { faCloudMoon } from '@fortawesome/free-solid-svg-icons/faCloudMoon';
 import { faCloudRain } from '@fortawesome/free-solid-svg-icons/faCloudRain';
+import { faCloudShowersHeavy } from '@fortawesome/free-solid-svg-icons/faCloudShowersHeavy';
 import { faCloudSun } from '@fortawesome/free-solid-svg-icons/faCloudSun';
+import { faSmog } from '@fortawesome/free-solid-svg-icons/faSmog';
 import { faCommentDots } from '@fortawesome/free-solid-svg-icons/faCommentDots';
 import { faCompass } from '@fortawesome/free-solid-svg-icons/faCompass';
 import { faCrown } from '@fortawesome/free-solid-svg-icons/faCrown';
@@ -110,6 +114,35 @@ export const STARTER_ICONS: { name: string; label: string; glyph: Glyph }[] = (
     ['skull', 'Skull', faSkull],
   ] as [string, string, IconDefinition][]
 ).map(([name, label, def]) => ({ name, label, glyph: defToGlyph(def) }));
+
+/** Weather condition → Font Awesome glyph */
+export const WEATHER_GLYPHS: Record<string, Glyph> = {
+  sunny: defToGlyph(faSun),
+  partly: defToGlyph(faCloudSun),
+  cloudy: defToGlyph(faCloud),
+  rain: defToGlyph(faCloudRain),
+  showers: defToGlyph(faCloudShowersHeavy),
+  storm: defToGlyph(faCloudBolt),
+  snow: defToGlyph(faSnowflake),
+  fog: defToGlyph(faSmog),
+  wind: defToGlyph(faWind),
+  night: defToGlyph(faMoon),
+  partlyNight: defToGlyph(faCloudMoon),
+};
+
+export const WEATHER_CONDITIONS: { value: string; label: string }[] = [
+  { value: 'sunny', label: 'Sunny' },
+  { value: 'partly', label: 'Partly cloudy' },
+  { value: 'cloudy', label: 'Cloudy' },
+  { value: 'rain', label: 'Rain' },
+  { value: 'showers', label: 'Heavy showers' },
+  { value: 'storm', label: 'Storm' },
+  { value: 'snow', label: 'Snow' },
+  { value: 'fog', label: 'Fog' },
+  { value: 'wind', label: 'Wind' },
+  { value: 'night', label: 'Clear night' },
+  { value: 'partlyNight', label: 'Cloudy night' },
+];
 
 /** Glyphs used inside complication widgets. */
 export const COMPLICATION_GLYPHS: Record<string, Glyph> = {

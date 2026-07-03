@@ -10,8 +10,9 @@ import type {
   TextElement,
   TickMarksElement,
   WatchElement,
+  WeatherIconElement,
 } from '@/types/watchface';
-import { COMPLICATION_GLYPHS, ICONS, type Glyph } from '@/data/icons';
+import { COMPLICATION_GLYPHS, ICONS, WEATHER_GLYPHS, type Glyph } from '@/data/icons';
 import { describeArc, pivotOffset, polar } from '@/lib/geometry';
 import { formatTime, handAngle, sourceValue, WEEKDAYS } from '@/lib/time';
 
@@ -327,6 +328,17 @@ function Icon({ el }: { el: IconElement }) {
   );
 }
 
+function WeatherIcon({ el, data }: { el: WeatherIconElement; data: LiveData }) {
+  const condition = el.condition === 'live' ? data.weatherCondition : el.condition;
+  const glyph = WEATHER_GLYPHS[condition] ?? WEATHER_GLYPHS.sunny;
+  const scale = Math.min(el.width / glyph.width, el.height / 512);
+  return (
+    <g transform={`scale(${scale}) translate(${-glyph.width / 2} -256)`}>
+      <path d={glyph.path} fill={el.color} />
+    </g>
+  );
+}
+
 const FIT_MAP = {
   contain: 'xMidYMid meet',
   cover: 'xMidYMid slice',
@@ -496,6 +508,8 @@ export function ElementRenderer({ el, data }: { el: WatchElement; data: LiveData
       return <TextLabel el={el} />;
     case 'icon':
       return <Icon el={el} />;
+    case 'weatherIcon':
+      return <WeatherIcon el={el} data={data} />;
     case 'progressBar':
       return <ProgressBar el={el} data={data} />;
     case 'tickMarks':

@@ -11,6 +11,7 @@ const TYPE_GLYPHS: Record<ElementType, string> = {
   text: ICONS.message,
   number: ICONS.star,
   icon: ICONS.star,
+  weatherIcon: ICONS.cloud,
   progressBar: ICONS.bolt,
   tickMarks: ICONS.compass,
   image: ICONS.cloud,
