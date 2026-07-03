@@ -75,39 +75,18 @@ function runZeus(cwd) {
 }
 
 /**
- * Runs `zeus preview`: builds, uploads the package to Zepp's cloud (needs a
- * one-time `zeus login` on this machine) and resolves with the QR URL that the
- * Zepp app scanner actually recognizes.
+ * Extracts the device .zpk from a built .zab bundle. The Zepp app's
+ * developer-mode scanner installs zpkd1://<host>/<path> QR links by
+ * downloading the .zpk over plain HTTPS — no Zepp cloud, no account.
  */
-function runZeusPreview(cwd, deviceName) {
-  return new Promise((resolve, reject) => {
-    // forward slashes: NODE_OPTIONS mangles quoted backslash paths on Windows
-    const shim = path.join(__dirname, 'qr-shim.js').replace(/\\/g, '/');
-    // -t skips the interactive device picker; quotes survive shell:true arg joining
-    const args = deviceName ? ['preview', '-t', `"${deviceName}"`] : ['preview'];
-    const child = execFile(
-      ZEUS_CMD,
-      args,
-      {
-        cwd,
-        shell: true,
-        timeout: 8 * 60 * 1000,
-        windowsHide: true,
-        env: { ...process.env, NODE_OPTIONS: `--require ${shim}` },
-      },
-      (err, stdout, stderr) => {
-        const out = `${stdout}\n${stderr}`;
-        const match = out.match(/SYLAR_QR_URL::(\S+)/);
-        if (match) return resolve(match[1]);
-        const hint = /login/i.test(out)
-          ? ' — run `zeus login` once on the build server machine.'
-          : '';
-        reject(new Error(`zeus preview produced no QR URL${hint}\n${out.slice(-2000)}`));
-      },
-    );
-    // zeus may wait on interactive prompts in edge cases; never let it hang on stdin
-    child.stdin?.end();
-  });
+function extractZpk(zabPath) {
+  const bundle = unzipSync(new Uint8Array(fs.readFileSync(zabPath)));
+  const manifest = JSON.parse(Buffer.from(bundle['manifest.json']).toString('utf8'));
+  const entry = manifest.zpks && manifest.zpks[0];
+  if (!entry || !bundle[entry.name]) {
+    throw new Error('.zab bundle contains no .zpk package');
+  }
+  return Buffer.from(bundle[entry.name]);
 }
 
 app.get('/api/health', (_req, res) => res.json({ ok: true }));
@@ -117,8 +96,8 @@ app.post('/api/build', async (req, res) => {
   if (!Buffer.isBuffer(req.body) || req.body.length === 0) {
     return res.status(400).json({ error: 'Send the exported project zip as application/zip' });
   }
-  // mode=qr (default): zeus preview → Zepp-cloud QR URL the Zepp app recognizes.
-  // mode=file: zeus build → locally hosted .zab download.
+  // mode=qr (default): build → serve the device .zpk → zpkd1:// install QR.
+  // mode=file: build → locally hosted .zab download.
   const mode = req.query.mode === 'file' ? 'file' : 'qr';
   const id = crypto.randomBytes(8).toString('hex');
   const projectDir = path.join(ROOT, id);
@@ -131,16 +110,22 @@ app.post('/api/build', async (req, res) => {
       if (!name.endsWith('/')) fs.writeFileSync(target, data);
     }
     console.log(`[${id}] ${mode} build…`);
-    if (mode === 'qr') {
-      const url = await runZeusPreview(projectDir, req.query.device);
-      console.log(`[${id}] done → ${url}`);
-      return res.json({ url, cloud: true });
-    }
     const zabPath = await runZeus(projectDir);
+    const base = (process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`)
+      .replace(/\/$/, '');
+    if (mode === 'qr') {
+      const zpk = extractZpk(zabPath);
+      const artifactName = `${id}.zpk`;
+      fs.writeFileSync(path.join(ARTIFACTS, artifactName), zpk);
+      // the Zepp app fetches zpkd1:// links over standard HTTPS —
+      // PUBLIC_URL must therefore be an https host reachable from phones
+      const url = `zpkd1://${base.replace(/^https?:\/\//, '')}/dl/${artifactName}`;
+      console.log(`[${id}] done → ${url}`);
+      return res.json({ url, size: zpk.length });
+    }
     const artifactName = `${id}.zab`;
     fs.copyFileSync(zabPath, path.join(ARTIFACTS, artifactName));
-    const base = process.env.PUBLIC_URL || `${req.protocol}://${req.get('host')}`;
-    const url = `${base.replace(/\/$/, '')}/dl/${artifactName}`;
+    const url = `${base}/dl/${artifactName}`;
     console.log(`[${id}] done → ${url}`);
     res.json({ url, size: fs.statSync(zabPath).size });
   } catch (err) {

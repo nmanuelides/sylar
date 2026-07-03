@@ -35,8 +35,7 @@ export function ExportModal() {
       setInstallStep('Rendering…');
       const { zip } = await generateZeppProject(project, setInstallStep);
       setInstallStep('Compiling on server…');
-      const zeppDevice = encodeURIComponent(device.zeppName ?? device.name);
-      const res = await fetch(`${buildServer}/api/build?mode=qr&device=${zeppDevice}`, {
+      const res = await fetch(`${buildServer}/api/build?mode=qr`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/zip' },
         body: zip as unknown as BodyInit,
@@ -197,7 +196,7 @@ export function ExportModal() {
                 <li>Open the scanner in Developer Mode</li>
                 <li>Scan this code — the watchface installs over Bluetooth</li>
               </ol>
-              <p className="export__note">Hosted on Zepp's servers · {installQr.url}</p>
+              <p className="export__note">Served by your Sylar build server · {installQr.url}</p>
             </div>
           </motion.div>
         )}
