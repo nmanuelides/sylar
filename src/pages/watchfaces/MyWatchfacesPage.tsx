@@ -11,7 +11,9 @@ import {
   saveProject,
 } from '@/services/projectService';
 import { supabaseConfigured } from '@/lib/supabase';
+import { PREVIEW_DATA } from '@/store/liveDataStore';
 import { toast } from '@/store/toastStore';
+import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { Modal, Svg, UI_ICONS } from '@/components/common/Ui';
 import '../pages.scss';
 
@@ -130,7 +132,15 @@ export function MyWatchfacesPage() {
                 whileHover={{ y: -4 }}
               >
                 <button className="face-card__thumb" onClick={() => navigate(`/create/${p.id}`)}>
-                  {p.thumbnail ? (
+                  {p.project ? (
+                    <WatchfaceSVG
+                      device={device}
+                      elements={p.project.normal}
+                      background={p.project.backgroundColor}
+                      data={PREVIEW_DATA}
+                      className="face-card__live"
+                    />
+                  ) : p.thumbnail ? (
                     <img src={p.thumbnail} alt={p.name} />
                   ) : (
                     <span className="face-card__placeholder">

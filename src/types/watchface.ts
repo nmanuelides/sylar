@@ -268,6 +268,8 @@ export interface ProjectSummary {
   deviceId: string;
   updatedAt: string;
   thumbnail?: string;
+  /** Full design data — present for locally stored projects, used for live previews */
+  project?: WatchfaceProject;
 }
 
 export interface LiveData {

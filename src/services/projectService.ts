@@ -70,6 +70,8 @@ export async function listProjects(): Promise<ProjectSummary[]> {
       deviceId: record.project.deviceId,
       updatedAt: record.project.updatedAt,
       thumbnail: record.thumbnail,
+      // full data is local anyway — lets the gallery render live previews
+      project: record.project,
     }))
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
