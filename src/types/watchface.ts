@@ -11,6 +11,16 @@ export interface Device {
 }
 
 export type DataSource =
+  | 'hour'
+  | 'hour12'
+  | 'minute'
+  | 'second'
+  | 'ampm'
+  | 'dayNumber'
+  | 'dayName'
+  | 'month'
+  | 'monthName'
+  | 'year'
   | 'heartRate'
   | 'steps'
   | 'battery'

@@ -39,7 +39,28 @@ export interface SourceValue {
 }
 
 export function sourceValue(source: DataSource, data: LiveData): SourceValue {
+  const d = data.now;
   switch (source) {
+    case 'hour':
+      return { value: pad(d.getHours()), unit: '', label: 'HOUR', fraction: d.getHours() / 24 };
+    case 'hour12':
+      return { value: pad(d.getHours() % 12 || 12), unit: '', label: 'HOUR', fraction: (d.getHours() % 12) / 12 };
+    case 'minute':
+      return { value: pad(d.getMinutes()), unit: '', label: 'MINUTES', fraction: d.getMinutes() / 60 };
+    case 'second':
+      return { value: pad(d.getSeconds()), unit: '', label: 'SECONDS', fraction: d.getSeconds() / 60 };
+    case 'ampm':
+      return { value: d.getHours() < 12 ? 'AM' : 'PM', unit: '', label: 'AM/PM', fraction: d.getHours() < 12 ? 0 : 1 };
+    case 'dayNumber':
+      return { value: String(d.getDate()), unit: '', label: 'DAY', fraction: d.getDate() / 31 };
+    case 'dayName':
+      return { value: WEEKDAYS[d.getDay()], unit: '', label: 'WEEKDAY', fraction: (d.getDay() || 7) / 7 };
+    case 'month':
+      return { value: pad(d.getMonth() + 1), unit: '', label: 'MONTH', fraction: (d.getMonth() + 1) / 12 };
+    case 'monthName':
+      return { value: MONTHS[d.getMonth()], unit: '', label: 'MONTH', fraction: (d.getMonth() + 1) / 12 };
+    case 'year':
+      return { value: String(d.getFullYear()), unit: '', label: 'YEAR', fraction: 1 };
     case 'heartRate':
       return { value: String(data.heartRate), unit: ' BPM', label: 'HEART RATE', fraction: data.heartRate / 180 };
     case 'steps':
@@ -81,6 +102,16 @@ export function sourceValue(source: DataSource, data: LiveData): SourceValue {
 }
 
 export const DATA_SOURCES: { value: DataSource; label: string }[] = [
+  { value: 'hour', label: 'Hour (24h)' },
+  { value: 'hour12', label: 'Hour (12h)' },
+  { value: 'minute', label: 'Minutes' },
+  { value: 'second', label: 'Seconds' },
+  { value: 'ampm', label: 'AM / PM' },
+  { value: 'dayNumber', label: 'Day number' },
+  { value: 'dayName', label: 'Day name' },
+  { value: 'month', label: 'Month number' },
+  { value: 'monthName', label: 'Month name' },
+  { value: 'year', label: 'Year' },
   { value: 'heartRate', label: 'Heart rate' },
   { value: 'steps', label: 'Steps' },
   { value: 'battery', label: 'Battery' },
