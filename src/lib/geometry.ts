@@ -4,16 +4,13 @@ export const deg2rad = (deg: number): number => (deg * Math.PI) / 180;
 
 /**
  * Rotation pivot offset from the element's center, in canvas units.
- * Only images have a configurable pivot; everything else rotates around center.
+ * Every element type supports a custom pivot; unset defaults to the center.
  */
 export function pivotOffset(el: WatchElement): { x: number; y: number } {
-  if (el.type === 'image') {
-    return {
-      x: ((el.pivotX ?? 0.5) - 0.5) * el.width,
-      y: ((el.pivotY ?? 0.5) - 0.5) * el.height,
-    };
-  }
-  return { x: 0, y: 0 };
+  return {
+    x: ((el.pivotX ?? 0.5) - 0.5) * el.width,
+    y: ((el.pivotY ?? 0.5) - 0.5) * el.height,
+  };
 }
 
 export const clamp = (v: number, min: number, max: number): number =>

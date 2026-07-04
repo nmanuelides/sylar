@@ -78,8 +78,8 @@ export function SelectionOverlay() {
   return (
     <div ref={overlayRef} className="selection-overlay">
       {selected.map((el) => {
-        const px = el.type === 'image' ? el.pivotX ?? 0.5 : 0.5;
-        const py = el.type === 'image' ? el.pivotY ?? 0.5 : 0.5;
+        const px = el.pivotX ?? 0.5;
+        const py = el.pivotY ?? 0.5;
         const style: React.CSSProperties = {
           left: (el.x - el.width / 2) * zoom,
           top: (el.y - el.height / 2) * zoom,
@@ -90,7 +90,7 @@ export function SelectionOverlay() {
         };
         const isSingle = single?.id === el.id;
         const isAnchor = selected.length > 1 && selectedIds[0] === el.id;
-        const showPivot = isSingle && el.type === 'image' && (px !== 0.5 || py !== 0.5);
+        const showPivot = isSingle && (px !== 0.5 || py !== 0.5);
         return (
           <div
             key={el.id}

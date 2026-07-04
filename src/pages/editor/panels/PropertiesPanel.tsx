@@ -147,6 +147,28 @@ function ElementProperties({ el }: { el: WatchElement }) {
           suffix="°"
         />
         <SliderField
+          label="Pivot X"
+          value={el.pivotX ?? 0.5}
+          min={0}
+          max={1}
+          step={0.001}
+          onStart={commit}
+          onChange={(v) => patch({ pivotX: v })}
+          displayScale={100}
+          suffix="%"
+        />
+        <SliderField
+          label="Pivot Y"
+          value={el.pivotY ?? 0.5}
+          min={0}
+          max={1}
+          step={0.001}
+          onStart={commit}
+          onChange={(v) => patch({ pivotY: v })}
+          displayScale={100}
+          suffix="%"
+        />
+        <SliderField
           label="Opacity"
           value={el.opacity}
           min={0}
@@ -174,8 +196,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
         )}
         {el.rotateWith && (
           <p className="props__note">
-            Rotates continuously around{' '}
-            {el.type === 'image' ? 'its pivot point (set below)' : 'its center'} to track{' '}
+            Rotates continuously around its pivot point (Pivot X/Y above) to track{' '}
             {el.rotateWith === 'weekday'
               ? 'the current day of the week (7 evenly-spaced positions, Monday first)'
               : el.rotateWith === 'battery'
@@ -686,32 +707,11 @@ function ElementProperties({ el }: { el: WatchElement }) {
             ]}
             onChange={(v) => commitPatch({ fit: v })}
           />
-          <SliderField
-            label="Pivot X"
-            value={el.pivotX ?? 0.5}
-            min={0}
-            max={1}
-            step={0.001}
-            onStart={commit}
-            onChange={(v) => patch({ pivotX: v })}
-            displayScale={100}
-            suffix="%"
-          />
-          <SliderField
-            label="Pivot Y"
-            value={el.pivotY ?? 0.5}
-            min={0}
-            max={1}
-            step={0.001}
-            onStart={commit}
-            onChange={(v) => patch({ pivotY: v })}
-            displayScale={100}
-            suffix="%"
-          />
           {el.rotateWith && (
             <p className="props__note">
-              For a hand pointing at 12, set Pivot Y to where the axle sits (e.g. 85% for a short
-              tail), then use the center-align buttons below to snap the pivot to the dial center.
+              For a hand pointing at 12, set Pivot Y (in Transform above) to where the axle sits
+              (e.g. 85% for a short tail), then use the center-align buttons below to snap the
+              pivot to the dial center.
             </p>
           )}
         </FieldGroup>

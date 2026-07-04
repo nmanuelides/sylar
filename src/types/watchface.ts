@@ -71,6 +71,9 @@ export interface ElementBase {
   locked: boolean;
   /** Continuously rotates the element to track a live value (ignored on hand elements, which use `hand` instead) */
   rotateWith?: RotationSource;
+  /** Rotation pivot as a fraction of the box (0–1 each axis); defaults to the center (0.5, 0.5) */
+  pivotX?: number;
+  pivotY?: number;
 }
 
 export interface ComplicationElement extends ElementBase {
@@ -224,9 +227,6 @@ export interface ImageElement extends ElementBase {
   assetId: string;
   src: string;
   fit: ImageFit;
-  /** Rotation pivot as a fraction of the box (0–1); defaults to the center (0.5, 0.5) */
-  pivotX?: number;
-  pivotY?: number;
 }
 
 export type WatchElement =
