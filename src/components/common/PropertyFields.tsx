@@ -52,6 +52,14 @@ export function NumberField({
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
   const shown = draft ?? String(Math.round(value * 100) / 100);
+  const commit = () => {
+    // `value` (not `draft`) is authoritative here: live typing already pushed
+    // every valid keystroke into it, and `draft` may already have been reset
+    // to null by the effect above by the time blur fires.
+    const clamped = Math.min(max, Math.max(min, value));
+    if (clamped !== value) onChange(clamped);
+    setDraft(null);
+  };
   return (
     <FieldRow label={label}>
       <div className="number-field">
@@ -64,10 +72,15 @@ export function NumberField({
           onFocus={onStart}
           onChange={(e) => {
             setDraft(e.target.value);
+            // Clamp only on commit (blur/Enter) — clamping mid-keystroke corrupts
+            // multi-digit entry whenever a typed prefix dips below `min`.
             const n = parseFloat(e.target.value);
-            if (!Number.isNaN(n)) onChange(Math.min(max, Math.max(min, n)));
+            if (!Number.isNaN(n)) onChange(n);
           }}
-          onBlur={() => setDraft(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          onBlur={commit}
         />
         {suffix && <span className="number-field__suffix">{suffix}</span>}
       </div>
@@ -103,6 +116,12 @@ export function SliderField({
   const dispStep = step * displayScale;
   const decimals = dispStep >= 1 ? 0 : dispStep >= 0.1 ? 1 : 2;
   const shown = draft ?? String(parseFloat((value * displayScale).toFixed(decimals)));
+  const commit = () => {
+    // `value` (not `draft`) is authoritative here — see NumberField's commit for why.
+    const clamped = Math.min(max, Math.max(min, value));
+    if (clamped !== value) onChange(clamped);
+    setDraft(null);
+  };
   return (
     <FieldRow label={label}>
       <div className="slider-field">
@@ -116,12 +135,15 @@ export function SliderField({
           onFocus={onStart}
           onChange={(e) => {
             setDraft(e.target.value);
+            // Clamp only on commit (blur/Enter) — clamping mid-keystroke corrupts
+            // multi-digit entry whenever a typed prefix dips below `min`.
             const n = parseFloat(e.target.value);
-            if (!Number.isNaN(n)) {
-              onChange(Math.min(max, Math.max(min, n / displayScale)));
-            }
+            if (!Number.isNaN(n)) onChange(n / displayScale);
           }}
-          onBlur={() => setDraft(null)}
+          onKeyDown={(e) => {
+            if (e.key === 'Enter') e.currentTarget.blur();
+          }}
+          onBlur={commit}
         />
         {suffix && <span className="slider-field__suffix">{suffix}</span>}
         <input
