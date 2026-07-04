@@ -59,6 +59,20 @@ export function createProject(
   };
 }
 
+/** Projects saved/imported before the theme feature existed have no `theme` — seed the same defaults. */
+function withDefaultTheme(project: WatchfaceProject): WatchfaceProject {
+  if (project.theme && project.theme.length > 0) return project;
+  return {
+    ...project,
+    theme: [
+      { id: uid(), name: 'Accent', color: '#4fc3ff' },
+      { id: uid(), name: 'Text', color: '#eaf6ff' },
+      { id: uid(), name: 'Muted', color: '#547499' },
+    ],
+    themeBindings: project.themeBindings ?? {},
+  };
+}
+
 /** Writes `color` into whatever a binding key points at (an element property or a canvas background). */
 function applyBindingColor(
   project: WatchfaceProject,
@@ -178,7 +192,14 @@ export const useEditor = create<EditorStore>((set, get) => ({
   rightPanelOpen: false,
 
   setProject: (p) =>
-    set({ project: p, mode: 'normal', selectedIds: [], past: [], future: [], dirty: false }),
+    set({
+      project: withDefaultTheme(p),
+      mode: 'normal',
+      selectedIds: [],
+      past: [],
+      future: [],
+      dirty: false,
+    }),
   newProject: (deviceId, name) =>
     set({
       project: createProject(deviceId, name),

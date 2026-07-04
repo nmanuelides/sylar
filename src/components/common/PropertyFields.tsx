@@ -238,21 +238,28 @@ export function ColorField({
               setDraft(null);
             }}
           />
-          {bindingKey && theme.length > 0 && (
+          {bindingKey && (
             <span
               className={`color-field__theme-btn ${isBound ? 'is-active' : ''}`}
-              title={isBound ? `Linked to “${boundTheme!.name}” — pick to change or unlink` : 'Link to a theme color'}
+              title={
+                isBound
+                  ? `Linked to “${boundTheme!.name}” — pick to change or unlink`
+                  : theme.length > 0
+                    ? 'Link to a theme color'
+                    : 'Add theme colors in Canvas → Theme to link this field'
+              }
             >
               <Svg d={UI_ICONS.palette} size={13} />
               <select
                 value={boundThemeId ?? ''}
+                disabled={theme.length === 0}
                 onChange={(e) => {
                   commit();
                   if (e.target.value) bindToTheme(bindingKey, e.target.value);
                   else unbindTheme(bindingKey);
                 }}
               >
-                <option value="">Custom color</option>
+                <option value="">{theme.length > 0 ? 'Custom color' : 'No theme colors yet'}</option>
                 {theme.map((t) => (
                   <option key={t.id} value={t.id}>
                     {t.name}
