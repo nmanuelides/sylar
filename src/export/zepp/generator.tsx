@@ -83,14 +83,16 @@ function cssToZeppColor(css: string): number {
   return 0xffffff;
 }
 
-const isHandLike = (el: WatchElement): boolean =>
-  el.type === 'hand' || (el.type === 'image' && !!el.rotateWith);
+const isHandLike = (el: WatchElement): boolean => el.type === 'hand' || !!el.rotateWith;
 
+// Zepp OS TEXT/weather-icon widgets can't both stay "live" and rotate, so an
+// element with rotateWith set takes the rotating-baked-snapshot path instead
+// (see renderRotatingElement) rather than the live-updating path below.
 const isLiveText = (el: WatchElement): boolean =>
-  el.type === 'digitalTime' || el.type === 'number';
+  (el.type === 'digitalTime' || el.type === 'number') && !el.rotateWith;
 
 const isLiveWeather = (el: WatchElement): boolean =>
-  el.type === 'weatherIcon' && el.condition === 'live';
+  el.type === 'weatherIcon' && el.condition === 'live' && !el.rotateWith;
 
 /** Elements baked into the static background (chrome of dynamic ones included via staticOnly) */
 const isBaked = (el: WatchElement): boolean =>
@@ -172,7 +174,11 @@ export async function generateZeppProject(
     Math.round((240 * device.height) / device.width),
   );
 
-  /* -------------------------------- hands ------------------------------- */
+  /* ---------------------------- rotating elements ------------------------ */
+  // Hour/minute/second sources use Zepp's native TIME_POINTER (efficient,
+  // built-in clock binding). weekday/battery sources have no native widget,
+  // so they render as a plain rotating IMG whose angle the runtime updates
+  // periodically (see runtime.ts's `rotators`).
   const pointers: {
     kind: HandKind;
     path: string;
@@ -182,13 +188,32 @@ export async function generateZeppProject(
     py: number;
     aod: boolean;
   }[] = [];
+  const rotators: {
+    source: 'weekday' | 'battery';
+    path: string;
+    cx: number;
+    cy: number;
+    px: number;
+    py: number;
+    offset: number;
+    aod: boolean;
+  }[] = [];
 
-  const renderHand = async (el: WatchElement, aod: boolean, index: number) => {
-    if (el.type !== 'hand' && el.type !== 'image') return;
-    const kind: HandKind = el.type === 'hand' ? el.hand : el.rotateWith!;
+  const renderRotatingElement = async (el: WatchElement, aod: boolean, index: number) => {
+    const source = el.type === 'hand' ? el.hand : el.rotateWith;
+    if (!source) return;
+    if (el.type === 'digitalTime' || el.type === 'number') {
+      warnings.push(
+        `"${el.name}" rotates, but Zepp OS text widgets can't rotate and stay live at the same time — it's baked as a static snapshot showing the preview value instead.`,
+      );
+    } else if (el.type === 'weatherIcon') {
+      warnings.push(
+        `"${el.name}" rotates, but can't also keep updating its live weather icon — baked showing the preview condition.`,
+      );
+    }
     const w = Math.max(2, Math.round(el.width));
     const h = Math.max(2, Math.round(el.height));
-    onProgress(`Rendering ${kind} hand`);
+    onProgress(`Rendering ${source} rotator`);
     const png = await renderNodeToPng(
       <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
         <g transform={`translate(${w / 2} ${h / 2})`} opacity={el.opacity}>
@@ -198,33 +223,34 @@ export async function generateZeppProject(
       w,
       h,
     );
-    const name = `hands/${aod ? 'aod-' : ''}${kind}-${index}.png`;
+    const name = `hands/${aod ? 'aod-' : ''}${source}-${index}.png`;
     files[`${assetsDir}/${name}`] = png;
     const pivot = pivotOffset(el);
-    if (el.rotation !== 0) {
-      warnings.push(
-        `"${el.name}" has a manual rotation of ${el.rotation}° — Zepp OS pointers ignore it (time drives the angle).`,
-      );
+    const cx = Math.round(el.x + pivot.x);
+    const cy = Math.round(el.y + pivot.y);
+    const px = Math.round(w / 2 + pivot.x);
+    const py = Math.round(h / 2 + pivot.y);
+
+    if (source === 'hour' || source === 'minute' || source === 'second') {
+      if (el.rotation !== 0) {
+        warnings.push(
+          `"${el.name}" has a manual rotation of ${el.rotation}° — Zepp OS pointers ignore it (time drives the angle).`,
+        );
+      }
+      pointers.push({ kind: source, path: name, cx, cy, px, py, aod });
+    } else {
+      rotators.push({ source, path: name, cx, cy, px, py, offset: el.rotation, aod });
     }
-    pointers.push({
-      kind,
-      path: name,
-      cx: Math.round(el.x + pivot.x),
-      cy: Math.round(el.y + pivot.y),
-      px: Math.round(w / 2 + pivot.x),
-      py: Math.round(h / 2 + pivot.y),
-      aod,
-    });
   };
 
   let handIndex = 0;
   for (const el of project.normal.filter(isHandLike)) {
     if (!el.visible) continue;
-    await renderHand(el, false, handIndex++);
+    await renderRotatingElement(el, false, handIndex++);
   }
   for (const el of project.aod.filter(isHandLike)) {
     if (!el.visible) continue;
-    await renderHand(el, true, handIndex++);
+    await renderRotatingElement(el, true, handIndex++);
   }
 
   /* -------------------------- live weather icons ------------------------ */
@@ -452,7 +478,17 @@ export async function generateZeppProject(
 
   /* ------------------------------ code files ---------------------------- */
   onProgress('Generating code');
-  const spec = { width: device.width, height: device.height, hasAod, texts, arcs, bars, weathers, pointers };
+  const spec = {
+    width: device.width,
+    height: device.height,
+    hasAod,
+    texts,
+    arcs,
+    bars,
+    weathers,
+    pointers,
+    rotators,
+  };
   const indexJs = RUNTIME_TEMPLATE.replace('__SPEC__', JSON.stringify(spec, null, 2));
 
   if (googleFonts.size > 0) {
@@ -544,6 +580,9 @@ Generated by Sylar Watchface Studio for ${device.name} (${device.width}×${devic
   into \`bg.png\` / \`aod-bg.png\` at device resolution, so it looks exactly like the editor.
 - Live values are drawn by the watch: time, date, and health/weather data refresh
   every minute (every second when a seconds display is present).
+- Any element set to "Rotate as" hour/minute/second/day-of-week/battery spins
+  continuously on the watch, not just hands — day-of-week uses 7 evenly-spaced
+  positions (Monday first), battery sweeps a full turn from 0% to 100%.
 - Sensor access is defensive — if a data source isn't available on your model it
   shows \`--\` instead of crashing.
 - Live text using a Google Font references \`google-fonts.json\` — the Sylar build

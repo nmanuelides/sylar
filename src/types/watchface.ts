@@ -44,6 +44,9 @@ export type DataSource =
 export type HandKind = 'hour' | 'minute' | 'second';
 export type HandStyle = 'classic' | 'sword' | 'thin';
 
+/** Live value an element's rotation can continuously track */
+export type RotationSource = HandKind | 'weekday' | 'battery';
+
 export type ComplicationKind =
   | 'heartRate'
   | 'steps'
@@ -61,11 +64,13 @@ export interface ElementBase {
   y: number;
   width: number;
   height: number;
-  /** Degrees, user-set offset (hands add live time rotation on top) */
+  /** Degrees, user-set offset (added on top of any live rotation below) */
   rotation: number;
   opacity: number;
   visible: boolean;
   locked: boolean;
+  /** Continuously rotates the element to track a live value (ignored on hand elements, which use `hand` instead) */
+  rotateWith?: RotationSource;
 }
 
 export interface ComplicationElement extends ElementBase {
@@ -219,8 +224,6 @@ export interface ImageElement extends ElementBase {
   assetId: string;
   src: string;
   fit: ImageFit;
-  /** When set, the image rotates with live time like a watch hand */
-  rotateWith?: HandKind;
   /** Rotation pivot as a fraction of the box (0–1); defaults to the center (0.5, 0.5) */
   pivotX?: number;
   pivotY?: number;

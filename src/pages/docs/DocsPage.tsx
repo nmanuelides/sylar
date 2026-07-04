@@ -30,7 +30,7 @@ const STEPS = [
   },
   {
     title: '4 · Upload your own assets',
-    text: 'The Assets tab accepts PNG, JPG and SVG images plus TTF/OTF fonts. To turn an image into a working watch hand, place it, then set Properties → Image → "Rotate as" to hour, minute or second — it will spin around its center with live time.',
+    text: 'The Assets tab accepts PNG, JPG and SVG images plus TTF/OTF fonts. Any element — not just images — can spin continuously: set Properties → Transform → "Rotate as" to hour, minute, second, day of week, or battery.',
   },
   {
     title: '5 · Design the AOD',

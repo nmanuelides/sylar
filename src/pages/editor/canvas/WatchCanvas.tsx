@@ -152,7 +152,7 @@ export function WatchCanvas() {
               {/* generous invisible hit area for thin elements */}
               <g
                 transform={`translate(${el.x} ${el.y}) rotate(${
-                  el.rotation + elementTimeRotation(el, data.now)
+                  el.rotation + elementTimeRotation(el, data)
                 } ${pivotOffset(el).x} ${pivotOffset(el).y})`}
               >
                 <rect

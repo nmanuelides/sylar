@@ -307,6 +307,31 @@ WatchFace({
       ui.createWidget(ui.widget.TIME_POINTER, cfg)
     })
 
+    // generic rotating elements (weekday / battery) — no native pointer widget
+    // for these, so a plain IMG's angle is updated by hand, same mechanism
+    // TIME_POINTER itself uses under the hood (pos_x/pos_y/center_x/center_y).
+    SPEC.rotators.forEach((rt) => {
+      const w = ui.createWidget(ui.widget.IMG, {
+        x: 0, y: 0, w: SPEC.width, h: SPEC.height,
+        pos_x: rt.px, pos_y: rt.py,
+        center_x: rt.cx, center_y: rt.cy,
+        src: rt.path, angle: rt.offset,
+        show_level: level(rt.aod),
+      })
+      updaters.push(() => {
+        let deg = rt.offset
+        if (rt.source === 'battery') {
+          const v = num(tryCall(sensor('Battery'), ['getCurrent'])) || 0
+          deg += (Math.max(0, Math.min(100, v)) / 100) * 360
+        } else if (rt.source === 'weekday') {
+          const day = time ? time.getDay() : 1 // Zepp Time sensor: 1=Monday..7=Sunday
+          const idx = ((day - 1) % 7 + 7) % 7
+          deg += idx * (360 / 7)
+        }
+        try { w.setProperty(ui.prop.ANGLE, deg) } catch (e) { /* ignore */ }
+      })
+    })
+
     const refreshAll = () => updaters.forEach((u) => u())
     refreshAll()
     if (time && time.onPerMinute) time.onPerMinute(refreshAll)

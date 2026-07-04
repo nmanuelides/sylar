@@ -157,6 +157,33 @@ function ElementProperties({ el }: { el: WatchElement }) {
           displayScale={100}
           suffix="%"
         />
+        {el.type !== 'hand' && (
+          <SelectField
+            label="Rotate as"
+            value={el.rotateWith ?? 'none'}
+            options={[
+              { value: 'none', label: 'Static' },
+              { value: 'hour', label: 'Hour' },
+              { value: 'minute', label: 'Minute' },
+              { value: 'second', label: 'Second' },
+              { value: 'weekday', label: 'Day of week' },
+              { value: 'battery', label: 'Battery' },
+            ]}
+            onChange={(v) => commitPatch({ rotateWith: v === 'none' ? undefined : v })}
+          />
+        )}
+        {el.rotateWith && (
+          <p className="props__note">
+            Rotates continuously around{' '}
+            {el.type === 'image' ? 'its pivot point (set below)' : 'its center'} to track{' '}
+            {el.rotateWith === 'weekday'
+              ? 'the current day of the week (7 evenly-spaced positions, Monday first)'
+              : el.rotateWith === 'battery'
+                ? 'battery level (0% = 0°, 100% = full turn)'
+                : `the ${el.rotateWith} hand angle`}
+            . “Rotation” above fine-tunes the zero angle.
+          </p>
+        )}
       </FieldGroup>
 
       {el.type === 'complication' && (
@@ -659,19 +686,6 @@ function ElementProperties({ el }: { el: WatchElement }) {
             ]}
             onChange={(v) => commitPatch({ fit: v })}
           />
-          <SelectField
-            label="Rotate as"
-            value={el.rotateWith ?? 'none'}
-            options={[
-              { value: 'none', label: 'Static image' },
-              { value: 'hour', label: 'Hour hand' },
-              { value: 'minute', label: 'Minute hand' },
-              { value: 'second', label: 'Second hand' },
-            ]}
-            onChange={(v) =>
-              commitPatch({ rotateWith: v === 'none' ? undefined : v })
-            }
-          />
           <SliderField
             label="Pivot X"
             value={el.pivotX ?? 0.5}
@@ -696,10 +710,8 @@ function ElementProperties({ el }: { el: WatchElement }) {
           />
           {el.rotateWith && (
             <p className="props__note">
-              The image spins around its pivot point with live time — for a hand pointing at 12,
-              set Pivot Y to where the axle sits (e.g. 85% for a short tail), then use the
-              center-align buttons below to snap the pivot to the dial center. “Rotation” above
-              fine-tunes the zero angle.
+              For a hand pointing at 12, set Pivot Y to where the axle sits (e.g. 85% for a short
+              tail), then use the center-align buttons below to snap the pivot to the dial center.
             </p>
           )}
         </FieldGroup>

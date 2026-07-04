@@ -22,7 +22,7 @@ import {
   polar,
   roundedRectBoundaryPoint,
 } from '@/lib/geometry';
-import { formatTime, handAngle, sourceValue, WEEKDAYS } from '@/lib/time';
+import { formatTime, handAngle, rotationSourceAngle, sourceValue, WEEKDAYS } from '@/lib/time';
 
 /** Ratio between rendered font size and element box height for text elements */
 export const FONT_HEIGHT_RATIO = 0.78;
@@ -601,14 +601,14 @@ export function ElementRenderer({
   }
 }
 
-/** Live time rotation for hands and hand-like images (0 for everything else). */
-export function elementTimeRotation(el: WatchElement, now: Date): number {
-  if (el.type === 'hand') return handAngle(el.hand, now);
-  if (el.type === 'image' && el.rotateWith) return handAngle(el.rotateWith, now);
+/** Live rotation for hands and any element with `rotateWith` set (0 for everything else). */
+export function elementTimeRotation(el: WatchElement, data: LiveData): number {
+  if (el.type === 'hand') return handAngle(el.hand, data.now);
+  if (el.rotateWith) return rotationSourceAngle(el.rotateWith, data);
   return 0;
 }
 
-/** Positions + rotates an element; hands add live time rotation. */
+/** Positions + rotates an element; hands and rotateWith elements add live rotation. */
 export function ElementNode({
   el,
   data,
@@ -619,7 +619,7 @@ export function ElementNode({
   staticOnly?: boolean;
 }) {
   if (!el.visible) return null;
-  const rotation = el.rotation + elementTimeRotation(el, data.now);
+  const rotation = el.rotation + elementTimeRotation(el, data);
   const pivot = pivotOffset(el);
   return (
     <g

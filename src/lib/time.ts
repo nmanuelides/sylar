@@ -1,4 +1,4 @@
-import type { DataSource, HandKind, LiveData, TimeFormat } from '@/types/watchface';
+import type { DataSource, HandKind, LiveData, RotationSource, TimeFormat } from '@/types/watchface';
 
 export function handAngle(hand: HandKind, d: Date): number {
   const s = d.getSeconds();
@@ -12,6 +12,20 @@ export function handAngle(hand: HandKind, d: Date): number {
     default:
       return h * 30 + m * 0.5;
   }
+}
+
+/** Angle (Sylar convention: 0 = up, clockwise) for any live rotation source. */
+export function rotationSourceAngle(source: RotationSource, data: LiveData): number {
+  if (source === 'hour' || source === 'minute' || source === 'second') {
+    return handAngle(source, data.now);
+  }
+  if (source === 'battery') {
+    return (Math.max(0, Math.min(100, data.battery)) / 100) * 360;
+  }
+  // weekday: Monday = 0°, one of 7 evenly-spaced positions, matching JS's
+  // Sunday-first getDay() remapped to a Monday-first index.
+  const mondayIndex = (data.now.getDay() + 6) % 7;
+  return mondayIndex * (360 / 7);
 }
 
 const pad = (n: number): string => String(n).padStart(2, '0');
