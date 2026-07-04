@@ -512,6 +512,27 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onChange={(v) => patch({ majorEvery: Math.round(v) })}
               />
               <SegmentField
+                label="Layout"
+                value={el.layout ?? 'circle'}
+                options={[
+                  { value: 'circle', label: 'Circle' },
+                  { value: 'rect', label: 'Rectangle' },
+                ]}
+                onChange={(v) => commitPatch({ layout: v })}
+              />
+              {el.layout === 'rect' && (
+                <SliderField
+                  label="Track radius"
+                  value={el.pathCornerRadius ?? 0}
+                  min={0}
+                  max={Math.min(el.width, el.height) / 2}
+                  step={1}
+                  onStart={commit}
+                  onChange={(v) => patch({ pathCornerRadius: v })}
+                  suffix="px"
+                />
+              )}
+              <SegmentField
                 label="Shape"
                 value={el.shape}
                 options={[

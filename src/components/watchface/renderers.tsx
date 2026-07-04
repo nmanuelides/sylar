@@ -13,7 +13,15 @@ import type {
   WeatherIconElement,
 } from '@/types/watchface';
 import { COMPLICATION_GLYPHS, ICONS, WEATHER_GLYPHS, type Glyph } from '@/data/icons';
-import { describeArc, pivotOffset, polar } from '@/lib/geometry';
+import {
+  type BoundaryPoint,
+  circleBoundaryPoint,
+  describeArc,
+  offsetAlongNormal,
+  pivotOffset,
+  polar,
+  roundedRectBoundaryPoint,
+} from '@/lib/geometry';
 import { formatTime, handAngle, sourceValue, WEEKDAYS } from '@/lib/time';
 
 /** Ratio between rendered font size and element box height for text elements */
@@ -462,24 +470,32 @@ function ProgressBar({
 function TickMarks({ el }: { el: TickMarksElement }) {
   const r = Math.min(el.width, el.height) / 2;
   const showTicks = el.showTicks ?? true;
+  const isRectLayout = el.layout === 'rect';
+  const pathCorner = el.pathCornerRadius ?? 0;
+
+  const boundaryAt = (t: number): BoundaryPoint =>
+    isRectLayout
+      ? roundedRectBoundaryPoint(el.width, el.height, pathCorner, t)
+      : circleBoundaryPoint(r, t);
+
   const ticks: JSX.Element[] = [];
   for (let i = 0; showTicks && i < el.count; i++) {
-    const angle = (i * 360) / el.count;
+    const bp = boundaryAt(i / el.count);
     const major = el.majorEvery > 0 && i % el.majorEvery === 0;
     const len = major ? el.majorLength : el.length;
     const color = major ? el.majorColor : el.color;
     const thickness = major ? el.thickness : Math.max(1, el.thickness * 0.6);
     if (el.shape === 'dot') {
-      const p = polar(0, 0, r - len / 2, angle);
-      ticks.push(<circle key={i} cx={p.x} cy={p.y} r={thickness} fill={color} />);
+      const c = offsetAlongNormal(bp, -len / 2);
+      ticks.push(<circle key={i} cx={c.x} cy={c.y} r={thickness} fill={color} />);
     } else if (el.shape === 'rect') {
-      const midR = r - len / 2;
+      const mid = offsetAlongNormal(bp, -len / 2);
       const radius = Math.min(el.cornerRadius ?? 0, thickness / 2, len / 2);
       ticks.push(
-        <g key={i} transform={`rotate(${angle})`}>
+        <g key={i} transform={`translate(${mid.x} ${mid.y}) rotate(${bp.angle})`}>
           <rect
             x={-thickness / 2}
-            y={-midR - len / 2}
+            y={-len / 2}
             width={thickness}
             height={len}
             rx={radius}
@@ -488,15 +504,14 @@ function TickMarks({ el }: { el: TickMarksElement }) {
         </g>,
       );
     } else {
-      const p1 = polar(0, 0, r, angle);
-      const p2 = polar(0, 0, r - len, angle);
+      const inner = offsetAlongNormal(bp, -len);
       ticks.push(
         <line
           key={i}
-          x1={p1.x}
-          y1={p1.y}
-          x2={p2.x}
-          y2={p2.y}
+          x1={bp.x}
+          y1={bp.y}
+          x2={inner.x}
+          y2={inner.y}
           stroke={color}
           strokeWidth={thickness}
           strokeLinecap="round"
@@ -510,9 +525,18 @@ function TickMarks({ el }: { el: TickMarksElement }) {
     const step = el.numberStep ?? 1;
     const fontSize = r * 0.16 * (el.numberScale ?? 1);
     // Without ticks the numerals hug the outer edge instead of sitting inside them
-    const nr = showTicks ? r - el.majorLength - fontSize * 0.9 : r - fontSize * 0.65;
+    const inset = showTicks ? el.majorLength + fontSize * 0.9 : fontSize * 0.65;
+    const numberBoundaryAt = (t: number): BoundaryPoint =>
+      isRectLayout
+        ? roundedRectBoundaryPoint(
+            Math.max(0, el.width - 2 * inset),
+            Math.max(0, el.height - 2 * inset),
+            Math.max(0, pathCorner - inset),
+            t,
+          )
+        : circleBoundaryPoint(Math.max(0, r - inset), t);
     for (let i = 0; i < count; i++) {
-      const p = polar(0, 0, nr, (i * 360) / count);
+      const p = numberBoundaryAt(i / count);
       const value = i === 0 ? (el.zeroAtTop ? 0 : count * step) : i * step;
       numbers.push(
         <text

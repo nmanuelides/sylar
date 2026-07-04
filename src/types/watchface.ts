@@ -193,6 +193,10 @@ export interface TickMarksElement extends ElementBase {
   thickness: number;
   /** Corner rounding for 'rect' shaped ticks — 0 = sharp, thickness/2 = pill */
   cornerRadius?: number;
+  /** How the ticks are arranged: around a circle (default) or a rounded-rectangle track */
+  layout?: 'circle' | 'rect';
+  /** Corner rounding of the rectangular arrangement track (layout: 'rect' only) */
+  pathCornerRadius?: number;
   /** Draw the tick lines/dots (default true; the Numerals preset turns this off) */
   showTicks?: boolean;
   showNumbers: boolean;
