@@ -185,12 +185,14 @@ export interface TickMarksElement extends ElementBase {
   type: 'tickMarks';
   count: number;
   majorEvery: number;
-  shape: 'line' | 'dot';
+  shape: 'line' | 'dot' | 'rect';
   color: string;
   majorColor: string;
   length: number;
   majorLength: number;
   thickness: number;
+  /** Corner rounding for 'rect' shaped ticks — 0 = sharp, thickness/2 = pill */
+  cornerRadius?: number;
   /** Draw the tick lines/dots (default true; the Numerals preset turns this off) */
   showTicks?: boolean;
   showNumbers: boolean;

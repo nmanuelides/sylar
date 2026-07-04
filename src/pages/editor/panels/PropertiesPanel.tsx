@@ -517,9 +517,22 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 options={[
                   { value: 'line', label: 'Lines' },
                   { value: 'dot', label: 'Dots' },
+                  { value: 'rect', label: 'Rectangles' },
                 ]}
                 onChange={(v) => commitPatch({ shape: v })}
               />
+              {el.shape === 'rect' && (
+                <SliderField
+                  label="Corner radius"
+                  value={el.cornerRadius ?? 0}
+                  min={0}
+                  max={Math.max(el.thickness, el.majorLength) / 2}
+                  step={0.5}
+                  onStart={commit}
+                  onChange={(v) => patch({ cornerRadius: v })}
+                  suffix="px"
+                />
+              )}
               <ColorField
                 label="Color"
                 value={el.color}

@@ -472,6 +472,21 @@ function TickMarks({ el }: { el: TickMarksElement }) {
     if (el.shape === 'dot') {
       const p = polar(0, 0, r - len / 2, angle);
       ticks.push(<circle key={i} cx={p.x} cy={p.y} r={thickness} fill={color} />);
+    } else if (el.shape === 'rect') {
+      const midR = r - len / 2;
+      const radius = Math.min(el.cornerRadius ?? 0, thickness / 2, len / 2);
+      ticks.push(
+        <g key={i} transform={`rotate(${angle})`}>
+          <rect
+            x={-thickness / 2}
+            y={-midR - len / 2}
+            width={thickness}
+            height={len}
+            rx={radius}
+            fill={color}
+          />
+        </g>,
+      );
     } else {
       const p1 = polar(0, 0, r, angle);
       const p2 = polar(0, 0, r - len, angle);
