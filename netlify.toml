@@ -1,0 +1,11 @@
+[build]
+  command = "npm run build"
+  publish = "dist"
+
+# Sylar is a single-page app (React Router, client-side routing) — every
+# path must fall through to index.html so refreshing /watchfaces or
+# /create/:id doesn't 404 on Netlify's static file server.
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
