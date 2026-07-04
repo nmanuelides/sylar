@@ -1,6 +1,7 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { ensureFontLoaded, FONT_CATEGORIES, FONTS } from '@/data/fonts';
 import { useEditor } from '@/store/editorStore';
+import { isValidColor, useColorHistory } from '@/store/colorHistoryStore';
 import { FontPicker } from './FontPicker';
 import { Svg, UI_ICONS } from './Ui';
 import './fields.scss';
@@ -151,32 +152,70 @@ export function ColorField({
 }: CommonProps & { value: string; onChange: (v: string) => void }) {
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
+  const recent = useColorHistory((s) => s.recent);
+  const favorites = useColorHistory((s) => s.favorites);
+  const addRecent = useColorHistory((s) => s.addRecent);
+  const toggleFavorite = useColorHistory((s) => s.toggleFavorite);
+  const isFav = isValidColor(value) && favorites.includes(value.trim().toLowerCase());
+  const chips = [...favorites, ...recent].slice(0, 12);
+
+  const applyChip = (c: string) => {
+    onStart?.();
+    onChange(c);
+  };
+
   return (
     <FieldRow label={label}>
       <div className="color-field">
-        <span className="color-field__swatch" style={{ background: value }}>
+        <div className="color-field__main">
+          <span className="color-field__swatch" style={{ background: value }}>
+            <input
+              type="color"
+              value={toHexColor(value)}
+              onFocus={onStart}
+              onChange={(e) => onChange(e.target.value)}
+              onBlur={(e) => addRecent(e.target.value)}
+            />
+          </span>
           <input
-            type="color"
-            value={toHexColor(value)}
+            className="color-field__hex"
+            type="text"
+            value={draft ?? value}
+            spellCheck={false}
             onFocus={onStart}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => {
+              setDraft(e.target.value);
+              const v = e.target.value.trim();
+              if (isValidColor(v)) onChange(v);
+            }}
+            onBlur={() => {
+              addRecent(value);
+              setDraft(null);
+            }}
           />
-        </span>
-        <input
-          className="color-field__hex"
-          type="text"
-          value={draft ?? value}
-          spellCheck={false}
-          onFocus={onStart}
-          onChange={(e) => {
-            setDraft(e.target.value);
-            const v = e.target.value.trim();
-            if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})$/.test(v) || v.startsWith('rgb')) {
-              onChange(v);
-            }
-          }}
-          onBlur={() => setDraft(null)}
-        />
+          <button
+            type="button"
+            className={`color-field__fav ${isFav ? 'is-active' : ''}`}
+            title={isFav ? 'Remove from favorite colors' : 'Save as a favorite color'}
+            onClick={() => toggleFavorite(value)}
+          >
+            <Svg d={UI_ICONS.star} size={13} />
+          </button>
+        </div>
+        {chips.length > 0 && (
+          <div className="color-field__swatches">
+            {chips.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className={`color-field__chip ${favorites.includes(c) ? 'is-fav' : ''}`}
+                style={{ background: c }}
+                title={c}
+                onClick={() => applyChip(c)}
+              />
+            ))}
+          </div>
+        )}
       </div>
     </FieldRow>
   );

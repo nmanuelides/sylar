@@ -54,6 +54,14 @@ export function CanvasArea() {
     syncRulers();
   }, [syncRulers, zoom, deviceId]);
 
+  // Clicking anywhere in the canvas area that isn't an element (empty margin,
+  // rulers, the space around the device) clears the selection. Element/canvas
+  // background clicks are handled first and stop propagation before this fires.
+  const onOutsidePointerDown = useCallback((e: React.PointerEvent) => {
+    if (e.button !== 0) return;
+    useEditor.getState().clearSelection();
+  }, []);
+
   // Middle-mouse drag pans the canvas
   const onViewportPointerDown = useCallback((e: React.PointerEvent) => {
     if (e.button !== 1) return;
@@ -94,7 +102,7 @@ export function CanvasArea() {
   return (
     <div className={`canvas-area ${mode === 'aod' ? 'is-aod' : ''}`}>
       <CanvasToolbar onFit={fit} />
-      <div className="canvas-area__viewport-wrap">
+      <div className="canvas-area__viewport-wrap" onPointerDown={onOutsidePointerDown}>
         <div
           className="canvas-area__viewport"
           ref={viewportRef}
