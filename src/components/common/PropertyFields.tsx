@@ -171,7 +171,13 @@ export function ColorField({
   value,
   onChange,
   onStart,
-}: CommonProps & { value: string; onChange: (v: string) => void }) {
+  bindingKey,
+}: CommonProps & {
+  value: string;
+  onChange: (v: string) => void;
+  /** Enables "bind to theme color" when provided — a stable id like `elementBindingKey(el.id, 'color')` */
+  bindingKey?: string;
+}) {
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
   const recent = useColorHistory((s) => s.recent);
@@ -180,6 +186,16 @@ export function ColorField({
   const toggleFavorite = useColorHistory((s) => s.toggleFavorite);
   const isFav = isValidColor(value) && favorites.includes(value.trim().toLowerCase());
   const chips = [...favorites, ...recent].slice(0, 12);
+
+  const theme = useEditor((s) => s.project.theme ?? []);
+  const boundThemeId = useEditor((s) =>
+    bindingKey ? s.project.themeBindings?.[bindingKey] : undefined,
+  );
+  const bindToTheme = useEditor((s) => s.bindToTheme);
+  const unbindTheme = useEditor((s) => s.unbindTheme);
+  const commit = useEditor((s) => s.commit);
+  const boundTheme = theme.find((t) => t.id === boundThemeId);
+  const isBound = !!boundTheme;
 
   const applyChip = (c: string) => {
     onStart?.();
@@ -190,20 +206,27 @@ export function ColorField({
     <FieldRow label={label}>
       <div className="color-field">
         <div className="color-field__main">
-          <span className="color-field__swatch" style={{ background: value }}>
-            <input
-              type="color"
-              value={toHexColor(value)}
-              onFocus={onStart}
-              onChange={(e) => onChange(e.target.value)}
-              onBlur={(e) => addRecent(e.target.value)}
-            />
+          <span
+            className={`color-field__swatch ${isBound ? 'is-bound' : ''}`}
+            style={{ background: value }}
+            title={isBound ? `Linked to theme color “${boundTheme!.name}”` : undefined}
+          >
+            {!isBound && (
+              <input
+                type="color"
+                value={toHexColor(value)}
+                onFocus={onStart}
+                onChange={(e) => onChange(e.target.value)}
+                onBlur={(e) => addRecent(e.target.value)}
+              />
+            )}
           </span>
           <input
             className="color-field__hex"
             type="text"
-            value={draft ?? value}
+            value={isBound ? boundTheme!.name : (draft ?? value)}
             spellCheck={false}
+            readOnly={isBound}
             onFocus={onStart}
             onChange={(e) => {
               setDraft(e.target.value);
@@ -211,20 +234,44 @@ export function ColorField({
               if (isValidColor(v)) onChange(v);
             }}
             onBlur={() => {
-              addRecent(value);
+              if (!isBound) addRecent(value);
               setDraft(null);
             }}
           />
+          {bindingKey && theme.length > 0 && (
+            <span
+              className={`color-field__theme-btn ${isBound ? 'is-active' : ''}`}
+              title={isBound ? `Linked to “${boundTheme!.name}” — pick to change or unlink` : 'Link to a theme color'}
+            >
+              <Svg d={UI_ICONS.palette} size={13} />
+              <select
+                value={boundThemeId ?? ''}
+                onChange={(e) => {
+                  commit();
+                  if (e.target.value) bindToTheme(bindingKey, e.target.value);
+                  else unbindTheme(bindingKey);
+                }}
+              >
+                <option value="">Custom color</option>
+                {theme.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.name}
+                  </option>
+                ))}
+              </select>
+            </span>
+          )}
           <button
             type="button"
             className={`color-field__fav ${isFav ? 'is-active' : ''}`}
             title={isFav ? 'Remove from favorite colors' : 'Save as a favorite color'}
             onClick={() => toggleFavorite(value)}
+            disabled={isBound}
           >
             <Svg d={UI_ICONS.star} size={13} />
           </button>
         </div>
-        {chips.length > 0 && (
+        {!isBound && chips.length > 0 && (
           <div className="color-field__swatches">
             {chips.map((c) => (
               <button

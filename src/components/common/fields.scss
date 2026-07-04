@@ -172,6 +172,54 @@
     min-width: 0;
     font-family: $font-mono;
     font-size: 12px;
+
+    &:read-only {
+      color: $accent-bright;
+      font-family: $font-ui;
+      font-style: italic;
+      background: $panel-2;
+      cursor: default;
+    }
+  }
+
+  &__swatch.is-bound {
+    cursor: default;
+    box-shadow: 0 0 0 2px $panel, 0 0 0 3px $accent-bright;
+  }
+
+  &__theme-btn {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    border-radius: $radius-sm;
+    color: $text-3;
+    cursor: pointer;
+    transition: color 0.15s ease, background 0.15s ease;
+
+    &:hover {
+      color: $text-2;
+      background: $panel-3;
+    }
+
+    &.is-active {
+      color: $accent-bright;
+      background: $accent-dim;
+    }
+
+    select {
+      position: absolute;
+      inset: 0;
+      width: 100%;
+      height: 100%;
+      padding: 0;
+      border: none;
+      opacity: 0;
+      cursor: pointer;
+    }
   }
 
   &__fav {
@@ -188,6 +236,11 @@
     &:hover {
       color: $text-2;
       background: $panel-3;
+    }
+
+    &:disabled {
+      opacity: 0.3;
+      pointer-events: none;
     }
 
     &.is-active {

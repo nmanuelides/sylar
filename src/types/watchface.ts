@@ -258,6 +258,13 @@ export interface CustomFontItem {
 
 export type EditorMode = 'normal' | 'aod';
 
+/** A named color swatch. Any color field can bind to one — editing the swatch updates every bound field. */
+export interface ThemeColor {
+  id: string;
+  name: string;
+  color: string;
+}
+
 export interface WatchfaceProject {
   id: string;
   name: string;
@@ -269,6 +276,10 @@ export interface WatchfaceProject {
   assets: AssetItem[];
   /** Optional for projects saved before custom fonts existed */
   fonts?: CustomFontItem[];
+  /** Optional for projects saved before themes existed */
+  theme?: ThemeColor[];
+  /** Maps a binding key ("el:<elementId>:<propKey>" or "bg:normal"/"bg:aod") to a theme color id */
+  themeBindings?: Record<string, string>;
   createdAt: string;
   updatedAt: string;
 }

@@ -1,6 +1,8 @@
 import { useState } from 'react';
 import type { WatchElement } from '@/types/watchface';
 import {
+  backgroundBindingKey,
+  elementBindingKey,
   selectBackground,
   selectCurrentElements,
   useEditor,
@@ -50,6 +52,7 @@ function useElementPatch(id: string) {
 
 function FontFields({
   el,
+  elementId,
   patch,
   commitPatch,
   commit,
@@ -61,6 +64,7 @@ function FontFields({
     letterSpacing?: number;
     height?: number;
   };
+  elementId: string;
   patch: (p: Record<string, unknown>) => void;
   commitPatch: (p: Record<string, unknown>) => void;
   commit: () => void;
@@ -97,7 +101,13 @@ function FontFields({
           onChange={(v) => commitPatch({ fontWeight: v })}
         />
       )}
-      <ColorField label="Color" value={el.color} onStart={commit} onChange={(v) => patch({ color: v })} />
+      <ColorField
+        label="Color"
+        value={el.color}
+        onStart={commit}
+        onChange={(v) => patch({ color: v })}
+        bindingKey={elementBindingKey(elementId, 'color')}
+      />
       {el.letterSpacing !== undefined && (
         <SliderField
           label="Letter spacing"
@@ -215,6 +225,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
               value={el.accentColor}
               onStart={commit}
               onChange={(v) => patch({ accentColor: v })}
+              bindingKey={elementBindingKey(el.id, 'accentColor')}
             />
             {el.kind !== 'date' && (
               <>
@@ -242,6 +253,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
               value={el.valueColor ?? el.textColor}
               onStart={commit}
               onChange={(v) => patch({ valueColor: v })}
+              bindingKey={elementBindingKey(el.id, 'valueColor')}
             />
             <FontField
               label="Font"
@@ -285,6 +297,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 value={el.labelColor ?? (el.kind === 'date' ? el.accentColor : el.textColor)}
                 onStart={commit}
                 onChange={(v) => patch({ labelColor: v })}
+                bindingKey={elementBindingKey(el.id, 'labelColor')}
               />
               <FontField
                 label="Font"
@@ -337,12 +350,19 @@ function ElementProperties({ el }: { el: WatchElement }) {
             ]}
             onChange={(v) => commitPatch({ style: v })}
           />
-          <ColorField label="Color" value={el.color} onStart={commit} onChange={(v) => patch({ color: v })} />
+          <ColorField
+            label="Color"
+            value={el.color}
+            onStart={commit}
+            onChange={(v) => patch({ color: v })}
+            bindingKey={elementBindingKey(el.id, 'color')}
+          />
           <ColorField
             label="Accent"
             value={el.accentColor}
             onStart={commit}
             onChange={(v) => patch({ accentColor: v })}
+            bindingKey={elementBindingKey(el.id, 'accentColor')}
           />
           <SwitchField label="Center cap" checked={el.showCap} onChange={(v) => commitPatch({ showCap: v })} />
         </FieldGroup>
@@ -368,7 +388,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
               onChange={(v) => commitPatch({ showAmPm: v })}
             />
           )}
-          <FontFields el={el} patch={patch} commitPatch={commitPatch} commit={commit} />
+          <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
         </FieldGroup>
       )}
 
@@ -381,7 +401,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
             onChange={(v) => commitPatch({ source: v })}
           />
           <SwitchField label="Unit" checked={el.showUnit} onChange={(v) => commitPatch({ showUnit: v })} />
-          <FontFields el={el} patch={patch} commitPatch={commitPatch} commit={commit} />
+          <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
         </FieldGroup>
       )}
 
@@ -393,7 +413,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
             checked={el.uppercase}
             onChange={(v) => commitPatch({ uppercase: v })}
           />
-          <FontFields el={el} patch={patch} commitPatch={commitPatch} commit={commit} />
+          <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
         </FieldGroup>
       )}
 
@@ -411,7 +431,13 @@ function ElementProperties({ el }: { el: WatchElement }) {
             <Svg d={UI_ICONS.search} size={13} />
             Browse Font Awesome icons
           </button>
-          <ColorField label="Color" value={el.color} onStart={commit} onChange={(v) => patch({ color: v })} />
+          <ColorField
+            label="Color"
+            value={el.color}
+            onStart={commit}
+            onChange={(v) => patch({ color: v })}
+            bindingKey={elementBindingKey(el.id, 'color')}
+          />
           <IconPicker
             open={iconPickerOpen}
             onClose={() => setIconPickerOpen(false)}
@@ -438,7 +464,13 @@ function ElementProperties({ el }: { el: WatchElement }) {
             ]}
             onChange={(v) => commitPatch({ condition: v })}
           />
-          <ColorField label="Color" value={el.color} onStart={commit} onChange={(v) => patch({ color: v })} />
+          <ColorField
+            label="Color"
+            value={el.color}
+            onStart={commit}
+            onChange={(v) => patch({ color: v })}
+            bindingKey={elementBindingKey(el.id, 'color')}
+          />
           <p className="props__note">
             “Live weather” follows the current condition (mocked as partly cloudy in the editor).
             Pin a condition to preview or force a specific icon.
@@ -468,12 +500,14 @@ function ElementProperties({ el }: { el: WatchElement }) {
             value={el.fillColor}
             onStart={commit}
             onChange={(v) => patch({ fillColor: v })}
+            bindingKey={elementBindingKey(el.id, 'fillColor')}
           />
           <ColorField
             label="Track"
             value={el.trackColor}
             onStart={commit}
             onChange={(v) => patch({ trackColor: v })}
+            bindingKey={elementBindingKey(el.id, 'trackColor')}
           />
           <SliderField
             label="Thickness"
@@ -607,12 +641,14 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 value={el.color}
                 onStart={commit}
                 onChange={(v) => patch({ color: v })}
+                bindingKey={elementBindingKey(el.id, 'color')}
               />
               <ColorField
                 label="Major color"
                 value={el.majorColor}
                 onStart={commit}
                 onChange={(v) => patch({ majorColor: v })}
+                bindingKey={elementBindingKey(el.id, 'majorColor')}
               />
               <SliderField
                 label="Length"
@@ -689,6 +725,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 value={el.numberColor}
                 onStart={commit}
                 onChange={(v) => patch({ numberColor: v })}
+                bindingKey={elementBindingKey(el.id, 'numberColor')}
               />
             </>
           )}
@@ -720,6 +757,66 @@ function ElementProperties({ el }: { el: WatchElement }) {
   );
 }
 
+function ThemePanel() {
+  const theme = useEditor((s) => s.project.theme ?? []);
+  const addThemeColor = useEditor((s) => s.addThemeColor);
+  const renameThemeColor = useEditor((s) => s.renameThemeColor);
+  const setThemeColor = useEditor((s) => s.setThemeColor);
+  const removeThemeColor = useEditor((s) => s.removeThemeColor);
+  const commit = useEditor((s) => s.commit);
+
+  return (
+    <FieldGroup title="Theme">
+      {theme.map((t) => (
+        <div key={t.id} className="theme-row">
+          <span className="theme-row__swatch" style={{ background: t.color }}>
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(t.color) ? t.color : '#4fc3ff'}
+              onFocus={commit}
+              onChange={(e) => setThemeColor(t.id, e.target.value)}
+            />
+          </span>
+          <input
+            className="theme-row__name"
+            type="text"
+            value={t.name}
+            spellCheck={false}
+            onFocus={commit}
+            onChange={(e) => renameThemeColor(t.id, e.target.value)}
+          />
+          <button
+            type="button"
+            className="icon-btn theme-row__delete"
+            title="Delete theme color"
+            onClick={() => {
+              commit();
+              removeThemeColor(t.id);
+            }}
+          >
+            <Svg d={UI_ICONS.trash} size={13} />
+          </button>
+        </div>
+      ))}
+      <button
+        type="button"
+        className="btn btn--outline props__wide-btn"
+        onClick={() => {
+          commit();
+          addThemeColor('New color', '#4fc3ff');
+        }}
+      >
+        <Svg d={UI_ICONS.plus} size={13} />
+        Add theme color
+      </button>
+      <p className="props__note">
+        Any color field across your design can link to one of these — editing it here updates every
+        linked field at once. Look for the palette icon next to a color.
+      </p>
+    </FieldGroup>
+  );
+}
+
 function CanvasProperties() {
   const project = useEditor((s) => s.project);
   const mode = useEditor((s) => s.mode);
@@ -746,6 +843,7 @@ function CanvasProperties() {
           value={background}
           onStart={commit}
           onChange={(v) => setBackground(v)}
+          bindingKey={backgroundBindingKey(mode)}
         />
         <NumberField
           label="Grid size"
@@ -757,6 +855,7 @@ function CanvasProperties() {
           suffix="px"
         />
       </FieldGroup>
+      <ThemePanel />
       {mode === 'aod' && (
         <FieldGroup title="AOD tools">
           <button className="btn btn--outline props__wide-btn" onClick={copyNormalToAod}>

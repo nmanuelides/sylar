@@ -3,6 +3,7 @@ import type {
   AssetItem,
   CustomFontItem,
   EditorMode,
+  ThemeColor,
   WatchElement,
   WatchfaceProject,
 } from '@/types/watchface';
@@ -17,9 +18,19 @@ interface Snapshot {
   backgroundColor: string;
   aodBackgroundColor: string;
   assets: AssetItem[];
+  theme: ThemeColor[];
+  themeBindings: Record<string, string>;
 }
 
 export type AlignKind = 'left' | 'centerH' | 'right' | 'top' | 'centerV' | 'bottom';
+
+/** Binding key for an element's color property — used to link it to a theme color. */
+export const elementBindingKey = (elementId: string, propKey: string): string =>
+  `el:${elementId}:${propKey}`;
+
+/** Binding key for the canvas background of a given editor mode. */
+export const backgroundBindingKey = (mode: EditorMode): string =>
+  mode === 'normal' ? 'bg:normal' : 'bg:aod';
 
 export function createProject(
   deviceId: string = DEFAULT_DEVICE_ID,
@@ -37,9 +48,31 @@ export function createProject(
     aod: [],
     assets: [],
     fonts: [],
+    theme: [
+      { id: uid(), name: 'Accent', color: '#4fc3ff' },
+      { id: uid(), name: 'Text', color: '#eaf6ff' },
+      { id: uid(), name: 'Muted', color: '#547499' },
+    ],
+    themeBindings: {},
     createdAt: now,
     updatedAt: now,
   };
+}
+
+/** Writes `color` into whatever a binding key points at (an element property or a canvas background). */
+function applyBindingColor(
+  project: WatchfaceProject,
+  bindingKey: string,
+  color: string,
+): WatchfaceProject {
+  if (bindingKey === backgroundBindingKey('normal')) return { ...project, backgroundColor: color };
+  if (bindingKey === backgroundBindingKey('aod')) return { ...project, aodBackgroundColor: color };
+  const match = bindingKey.match(/^el:([^:]+):(.+)$/);
+  if (!match) return project;
+  const [, elId, propKey] = match;
+  const patchArr = (arr: WatchElement[]): WatchElement[] =>
+    arr.map((el) => (el.id === elId ? ({ ...el, [propKey]: color } as WatchElement) : el));
+  return { ...project, normal: patchArr(project.normal), aod: patchArr(project.aod) };
 }
 
 interface EditorStore {
@@ -73,6 +106,13 @@ interface EditorStore {
   setExportOpen: (open: boolean) => void;
   setLeftPanelOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
+
+  addThemeColor: (name: string, color: string) => void;
+  renameThemeColor: (themeId: string, name: string) => void;
+  setThemeColor: (themeId: string, color: string) => void;
+  removeThemeColor: (themeId: string) => void;
+  bindToTheme: (bindingKey: string, themeId: string) => void;
+  unbindTheme: (bindingKey: string) => void;
 
   select: (ids: string[]) => void;
   toggleSelect: (id: string) => void;
@@ -111,6 +151,8 @@ const snap = (s: { project: WatchfaceProject }): Snapshot =>
     backgroundColor: s.project.backgroundColor,
     aodBackgroundColor: s.project.aodBackgroundColor,
     assets: s.project.assets,
+    theme: s.project.theme ?? [],
+    themeBindings: s.project.themeBindings ?? {},
   });
 
 const applySnap = (p: WatchfaceProject, s: Snapshot): WatchfaceProject => ({
@@ -385,6 +427,70 @@ export const useEditor = create<EditorStore>((set, get) => ({
       },
       dirty: true,
     })),
+  addThemeColor: (name, color) =>
+    set((s) => ({
+      project: {
+        ...s.project,
+        theme: [...(s.project.theme ?? []), { id: uid(), name, color }],
+        updatedAt: new Date().toISOString(),
+      },
+      dirty: true,
+    })),
+  renameThemeColor: (themeId, name) =>
+    set((s) => ({
+      project: {
+        ...s.project,
+        theme: (s.project.theme ?? []).map((t) => (t.id === themeId ? { ...t, name } : t)),
+        updatedAt: new Date().toISOString(),
+      },
+      dirty: true,
+    })),
+  setThemeColor: (themeId, color) =>
+    set((s) => {
+      const theme = (s.project.theme ?? []).map((t) => (t.id === themeId ? { ...t, color } : t));
+      let project: WatchfaceProject = { ...s.project, theme };
+      for (const [bindingKey, boundThemeId] of Object.entries(s.project.themeBindings ?? {})) {
+        if (boundThemeId === themeId) project = applyBindingColor(project, bindingKey, color);
+      }
+      return { project: { ...project, updatedAt: new Date().toISOString() }, dirty: true };
+    }),
+  removeThemeColor: (themeId) =>
+    set((s) => {
+      const themeBindings = { ...(s.project.themeBindings ?? {}) };
+      for (const key of Object.keys(themeBindings)) {
+        if (themeBindings[key] === themeId) delete themeBindings[key];
+      }
+      return {
+        project: {
+          ...s.project,
+          theme: (s.project.theme ?? []).filter((t) => t.id !== themeId),
+          themeBindings,
+          updatedAt: new Date().toISOString(),
+        },
+        dirty: true,
+      };
+    }),
+  bindToTheme: (bindingKey, themeId) =>
+    set((s) => {
+      const themeColor = (s.project.theme ?? []).find((t) => t.id === themeId);
+      if (!themeColor) return {};
+      const themeBindings = { ...(s.project.themeBindings ?? {}), [bindingKey]: themeId };
+      const project = applyBindingColor(
+        { ...s.project, themeBindings },
+        bindingKey,
+        themeColor.color,
+      );
+      return { project: { ...project, updatedAt: new Date().toISOString() }, dirty: true };
+    }),
+  unbindTheme: (bindingKey) =>
+    set((s) => {
+      const themeBindings = { ...(s.project.themeBindings ?? {}) };
+      delete themeBindings[bindingKey];
+      return {
+        project: { ...s.project, themeBindings, updatedAt: new Date().toISOString() },
+        dirty: true,
+      };
+    }),
   addFont: (font) =>
     set((s) => ({
       project: {
