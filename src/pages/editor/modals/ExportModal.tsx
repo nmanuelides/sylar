@@ -23,6 +23,7 @@ export function ExportModal() {
   const [zeppStep, setZeppStep] = useState<string | null>(null);
   const [installStep, setInstallStep] = useState<string | null>(null);
   const [installQr, setInstallQr] = useState<{ qr: string; url: string } | null>(null);
+  const [exportWarnings, setExportWarnings] = useState<string[]>([]);
   const buildServer = (import.meta.env.VITE_BUILD_SERVER_URL as string | undefined)?.replace(
     /\/$/,
     '',
@@ -31,9 +32,11 @@ export function ExportModal() {
   const installOnWatch = async () => {
     if (!buildServer) return;
     setInstallQr(null);
+    setExportWarnings([]);
     try {
       setInstallStep('Rendering…');
-      const { zip } = await generateZeppProject(project, setInstallStep);
+      const { zip, warnings } = await generateZeppProject(project, setInstallStep);
+      setExportWarnings(warnings);
       setInstallStep('Compiling on server…');
       const res = await fetch(
         `${buildServer}/api/build?mode=qr&res=${device.width}x${device.height}`,
@@ -62,8 +65,10 @@ export function ExportModal() {
 
   const exportZepp = async () => {
     setZeppStep('Preparing…');
+    setExportWarnings([]);
     try {
       const { zip, filename, warnings } = await generateZeppProject(project, setZeppStep);
+      setExportWarnings(warnings);
       const url = URL.createObjectURL(
         new Blob([zip as unknown as BlobPart], { type: 'application/zip' }),
       );
@@ -71,7 +76,7 @@ export function ExportModal() {
       setTimeout(() => URL.revokeObjectURL(url), 5000);
       toast(
         warnings.length
-          ? `Zepp OS project exported with ${warnings.length} warning(s) — see README.md inside`
+          ? `Zepp OS project exported with ${warnings.length} warning(s) — see below`
           : 'Zepp OS project exported',
         warnings.length ? 'info' : 'success',
       );
@@ -200,6 +205,22 @@ export function ExportModal() {
               </ol>
               <p className="export__note">Served by your Sylar build server · {installQr.url}</p>
             </div>
+          </motion.div>
+        )}
+        {exportWarnings.length > 0 && (
+          <motion.div
+            className="export__warnings"
+            initial={{ opacity: 0, y: -6 }}
+            animate={{ opacity: 1, y: 0 }}
+          >
+            <h4>
+              {exportWarnings.length} export warning{exportWarnings.length > 1 ? 's' : ''}
+            </h4>
+            <ul>
+              {exportWarnings.map((w, i) => (
+                <li key={i}>{w}</li>
+              ))}
+            </ul>
           </motion.div>
         )}
         <p className="export__note">

@@ -84,10 +84,36 @@ function weatherInfo() {
       f.forecast ||
       f.dailyForecast
     const today = Array.isArray(list) ? list[0] : null
+    const tomorrow = Array.isArray(list) ? list[1] : null
+    const max = findField(today || f, ['high', 'tempHigh', 'max', 'maxTemp'])
+    const min = findField(today || f, ['low', 'tempLow', 'min', 'minTemp'])
+    // Zepp's Weather sensor has no live "current" reading, on-device or
+    // documented — only forecast high/low per day (confirmed against a real
+    // device dump, not just docs). Approximate it with a diurnal curve:
+    // rising from today's low near dawn to today's high in the afternoon,
+    // then falling back toward tomorrow's low overnight — matches what
+    // other community watchfaces show as "current" from this same data.
+    let cur = findField(f, ['current', 'temperature', 'temp', 'curTemp'])
+    if (cur == null && max != null && min != null) {
+      const nextLow = tomorrow ? findField(tomorrow, ['low', 'tempLow', 'min', 'minTemp']) : null
+      const lowEnd = nextLow != null ? nextLow : min
+      const now = time ? time.getHours() + time.getMinutes() / 60 : 12
+      const trough = 6 // assumed dawn low
+      const peak = 15 // assumed mid-afternoon high
+      const span = 24 - (peak - trough)
+      if (now >= trough && now < peak) {
+        const t = (now - trough) / (peak - trough)
+        cur = min + (max - min) * (1 - Math.cos(t * Math.PI)) / 2
+      } else {
+        const t = now >= peak ? (now - peak) / span : (now + 24 - peak) / span
+        cur = max - (max - lowEnd) * (1 - Math.cos(t * Math.PI)) / 2
+      }
+      cur = Math.round(cur)
+    }
     return {
-      cur: findField(f, ['current', 'temperature', 'temp', 'curTemp']),
-      min: findField(today || f, ['low', 'tempLow', 'min', 'minTemp']),
-      max: findField(today || f, ['high', 'tempHigh', 'max', 'maxTemp']),
+      cur: cur != null ? cur : max,
+      min,
+      max,
       index: findField(today || f, ['index', 'weatherType', 'condition', 'weather']),
     }
   } catch (e) {
@@ -95,14 +121,23 @@ function weatherInfo() {
   }
 }
 
-// Zepp weather index → Sylar condition asset name (defensive best-effort)
+// Zepp weather index → Sylar condition asset name. Per Zepp's official
+// @zos/sensor Weather.getForecastWeather() index enum (0=Cloudy, 1=Showers,
+// 2=Snow Showers, 3=Sunny, 4=Overcast, 5=Light Rain, 6=Light Snow,
+// 7=Moderate Rain, 8=Moderate Snow, 9=Heavy Snow, 10=Heavy Rain,
+// 11=Sandstorm, 12=Rain and Snow, 13=Fog, 14=Hazy, 15=T-Storms,
+// 16=Snowstorm, 17=Floating Dust, 18=Very Heavy Rainstorm, 19=Rain and Hail,
+// 20=T-Storms and Hail, 21=Heavy Rainstorm, 22=Dust, 23=Heavy Sandstorm,
+// 24=Rainstorm, 25=Unknown, 26=Cloudy Night, 27=Showers Night,
+// 28=Sunny Night) — the previous map didn't match this enum at all.
 function weatherAsset(index) {
   const map = {
-    0: 'sunny', 1: 'partly', 2: 'cloudy', 3: 'showers', 4: 'storm', 5: 'snow',
-    6: 'snow', 7: 'rain', 8: 'rain', 9: 'rain', 10: 'showers', 11: 'storm',
-    12: 'snow', 13: 'snow', 14: 'snow', 15: 'snow', 16: 'snow', 17: 'showers',
-    18: 'fog', 19: 'showers', 20: 'wind', 21: 'partly', 22: 'showers',
-    23: 'showers', 24: 'wind', 25: 'rain', 26: 'snow',
+    0: 'cloudy', 1: 'showers', 2: 'snow', 3: 'sunny', 4: 'cloudy', 5: 'rain',
+    6: 'snow', 7: 'rain', 8: 'snow', 9: 'snow', 10: 'showers', 11: 'wind',
+    12: 'snow', 13: 'fog', 14: 'fog', 15: 'storm', 16: 'snow', 17: 'wind',
+    18: 'storm', 19: 'storm', 20: 'storm', 21: 'storm', 22: 'wind',
+    23: 'wind', 24: 'storm', 25: 'partly', 26: 'partlyNight', 27: 'partlyNight',
+    28: 'night',
   }
   return map[index] || 'partly'
 }
@@ -247,6 +282,26 @@ WatchFace({
 
     // linear bars
     SPEC.bars.forEach((b) => {
+      if (b.segments) {
+        // Zepp OS has no native multi-block fill widget — one FILL_RECT per
+        // segment, each independently sized from the overall source fraction.
+        const n = b.segments
+        const gap = b.gap || 0
+        for (let i = 0; i < n; i++) {
+          const segX = b.x + i * (b.w + gap)
+          const w = ui.createWidget(ui.widget.FILL_RECT, {
+            x: segX, y: b.y, w: 1, h: b.h, radius: b.radius, color: b.color,
+            show_level: level(b.aod),
+          })
+          updaters.push(() => {
+            const frac = Math.max(0, Math.min(1, sourceVal(b.source).frac))
+            const segFrac = Math.max(0, Math.min(1, frac * n - i))
+            const width = segFrac > 0 ? Math.max(b.radius * 2, Math.round(b.w * segFrac)) : 1
+            try { w.setProperty(ui.prop.MORE, { x: segX, y: b.y, w: width, h: b.h }) } catch (e) { /* ignore */ }
+          })
+        }
+        return
+      }
       const w = ui.createWidget(ui.widget.FILL_RECT, {
         x: b.x, y: b.y, w: 1, h: b.h, radius: b.radius, color: b.color,
         show_level: level(b.aod),
@@ -331,6 +386,17 @@ WatchFace({
         try { w.setProperty(ui.prop.ANGLE, deg) } catch (e) { /* ignore */ }
       })
     })
+
+    // static overlays — layers that sat above a progress bar/complication/
+    // live text/hand in the editor's stack. Those live widgets always draw
+    // above the flattened background image, so anything meant to sit above
+    // them has to be its own image created last, on top of everything else.
+    if (SPEC.hasOverlay) {
+      ui.createWidget(ui.widget.IMG, { x: 0, y: 0, src: 'overlay.png', show_level: SL_NORMAL })
+    }
+    if (SPEC.hasAodOverlay) {
+      ui.createWidget(ui.widget.IMG, { x: 0, y: 0, src: 'aod-overlay.png', show_level: SL_AOD })
+    }
 
     const refreshAll = () => updaters.forEach((u) => u())
     refreshAll()

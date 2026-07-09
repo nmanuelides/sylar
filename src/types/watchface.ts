@@ -56,6 +56,17 @@ export type ComplicationKind =
   | 'date'
   | 'distance';
 
+export interface ShadowSpec {
+  id: string;
+  offsetX: number;
+  offsetY: number;
+  blur: number;
+  spread: number;
+  color: string;
+  opacity: number;
+  inner: boolean;
+}
+
 export interface ElementBase {
   id: string;
   name: string;
@@ -71,9 +82,13 @@ export interface ElementBase {
   locked: boolean;
   /** Continuously rotates the element to track a live value (ignored on hand elements, which use `hand` instead) */
   rotateWith?: RotationSource;
-  /** Rotation pivot as a fraction of the box (0–1 each axis); defaults to the center (0.5, 0.5) */
+  /** Rotation pivot as a fraction of the box (each axis may fall outside 0–1); defaults to the center (0.5, 0.5) */
   pivotX?: number;
   pivotY?: number;
+  /** Element to pivot around instead of pivotX/pivotY, when set (uses the target's center) */
+  pivotTargetId?: string;
+  /** Stacked drop-shadows, rendered back-to-front (array order) */
+  shadows?: ShadowSpec[];
 }
 
 export interface ComplicationElement extends ElementBase {
@@ -179,7 +194,16 @@ export interface ProgressBarElement extends ElementBase {
   trackColor: string;
   fillColor: string;
   thickness: number;
+  /** Circular: arc cap (round/butt). Linear: legacy full-pill shortcut, superseded by cornerRadius when set. */
   rounded: boolean;
+  /** Linear only: numeric corner radius in px. Undefined falls back to `rounded` (0 or thickness/2). */
+  cornerRadius?: number;
+  /** Linear only: draw as N discrete blocks that fill left-to-right instead of one continuous bar. */
+  segmented?: boolean;
+  /** Linear + segmented only: number of blocks (default 5). */
+  segmentCount?: number;
+  /** Linear + segmented only: gap between blocks in px (default 4). */
+  segmentGap?: number;
   /** Circular only: degrees, 0 = 12 o'clock */
   startAngle: number;
   sweep: number;

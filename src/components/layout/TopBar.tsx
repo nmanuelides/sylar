@@ -59,7 +59,7 @@ export function TopBar() {
 
   return (
     <header className="topbar">
-      <NavLink to="/create" className="topbar__brand">
+      <NavLink to="/watchfaces" className="topbar__brand">
         <motion.span
           className="topbar__logo"
           animate={{ rotate: 360 }}

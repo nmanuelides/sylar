@@ -13,6 +13,26 @@ export function pivotOffset(el: WatchElement): { x: number; y: number } {
   };
 }
 
+/**
+ * World-space (canvas-unit) pivot point for an element: either its own
+ * center + pivotX/pivotY-derived offset, or — when pivotTargetId is set and
+ * resolvable — the exact center (x, y) of the target element. Reading only
+ * the target's raw x/y (never recursing into the target's own resolvePivot)
+ * makes A→B→A pivot cycles harmless by construction, not something to guard
+ * against.
+ */
+export function resolvePivot(
+  el: WatchElement,
+  allElements: WatchElement[],
+): { x: number; y: number } {
+  if (el.pivotTargetId) {
+    const target = allElements.find((e) => e.id === el.pivotTargetId);
+    if (target) return { x: target.x, y: target.y };
+  }
+  const off = pivotOffset(el);
+  return { x: el.x + off.x, y: el.y + off.y };
+}
+
 export const clamp = (v: number, min: number, max: number): number =>
   Math.min(max, Math.max(min, v));
 

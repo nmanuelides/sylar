@@ -10,7 +10,7 @@ import type {
 import { DEFAULT_DEVICE_ID, getDevice } from '@/data/devices';
 import { starterElements } from '@/data/library';
 import { projectId, uid } from '@/lib/uid';
-import { clamp, pivotOffset } from '@/lib/geometry';
+import { clamp, resolvePivot } from '@/lib/geometry';
 
 interface Snapshot {
   normal: WatchElement[];
@@ -188,8 +188,8 @@ export const useEditor = create<EditorStore>((set, get) => ({
   future: [],
   previewOpen: false,
   exportOpen: false,
-  leftPanelOpen: false,
-  rightPanelOpen: false,
+  leftPanelOpen: true,
+  rightPanelOpen: true,
 
   setProject: (p) =>
     set({
@@ -222,7 +222,7 @@ export const useEditor = create<EditorStore>((set, get) => ({
       dirty: true,
     })),
   setMode: (mode) => set({ mode, selectedIds: [] }),
-  setZoom: (zoom) => set({ zoom: clamp(Math.round(zoom * 100) / 100, 0.15, 4) }),
+  setZoom: (zoom) => set({ zoom: clamp(Math.round(zoom * 100) / 100, 0.15, 8) }),
   toggleGrid: () => set((s) => ({ showGrid: !s.showGrid })),
   toggleSnap: () => set((s) => ({ snap: !s.snap })),
   setGridSize: (size) => set({ gridSize: clamp(Math.round(size), 2, 100) }),
@@ -300,12 +300,19 @@ export const useEditor = create<EditorStore>((set, get) => ({
     set((s) => {
       if (ids.length === 0) return {};
       const key = modeKey(s.mode);
+      const remaining = s.project[key]
+        .filter((el) => !ids.includes(el.id))
+        .map((el) =>
+          el.pivotTargetId && ids.includes(el.pivotTargetId)
+            ? { ...el, pivotTargetId: undefined }
+            : el,
+        );
       return {
         past: [...s.past.slice(-59), snap(s)],
         future: [],
         project: {
           ...s.project,
-          [key]: s.project[key].filter((el) => !ids.includes(el.id)),
+          [key]: remaining,
           updatedAt: new Date().toISOString(),
         },
         selectedIds: s.selectedIds.filter((id) => !ids.includes(id)),
@@ -373,13 +380,13 @@ export const useEditor = create<EditorStore>((set, get) => ({
             return { x: el.width / 2 };
           case 'centerH':
             // For images the pivot (not the box) lands on center — hand assets need this
-            return { x: device.width / 2 - pivotOffset(el).x };
+            return { x: device.width / 2 - (resolvePivot(el, elements).x - el.x) };
           case 'right':
             return { x: device.width - el.width / 2 };
           case 'top':
             return { y: el.height / 2 };
           case 'centerV':
-            return { y: device.height / 2 - pivotOffset(el).y };
+            return { y: device.height / 2 - (resolvePivot(el, elements).y - el.y) };
           case 'bottom':
             return { y: device.height - el.height / 2 };
         }
@@ -419,16 +426,29 @@ export const useEditor = create<EditorStore>((set, get) => ({
     );
   },
   copyNormalToAod: () =>
-    set((s) => ({
-      past: [...s.past.slice(-59), snap(s)],
-      future: [],
-      project: {
-        ...s.project,
-        aod: s.project.normal.map((el) => ({ ...structuredClone(el), id: uid() })),
-        updatedAt: new Date().toISOString(),
-      },
-      dirty: true,
-    })),
+    set((s) => {
+      // Preserve pivotTargetId relationships across the copy — an AOD hand
+      // pivoting on an AOD dial-center element should stay bound to its AOD
+      // counterpart, not the normal-mode id it can never resolve in AOD mode.
+      const idMap = new Map(s.project.normal.map((el) => [el.id, uid()]));
+      const aod = s.project.normal.map((el) => {
+        const clone = { ...structuredClone(el), id: idMap.get(el.id)! };
+        if (clone.pivotTargetId) {
+          clone.pivotTargetId = idMap.get(clone.pivotTargetId);
+        }
+        return clone;
+      });
+      return {
+        past: [...s.past.slice(-59), snap(s)],
+        future: [],
+        project: {
+          ...s.project,
+          aod,
+          updatedAt: new Date().toISOString(),
+        },
+        dirty: true,
+      };
+    }),
 
   addAsset: (asset) =>
     set((s) => ({

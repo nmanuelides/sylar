@@ -1,6 +1,6 @@
 import { useRef } from 'react';
 import { selectCurrentElements, useEditor } from '@/store/editorStore';
-import { pivotOffset, rotateVec } from '@/lib/geometry';
+import { resolvePivot, rotateVec } from '@/lib/geometry';
 import { trackPointer } from '@/lib/drag';
 
 const HANDLE_DIRS = ['nw', 'n', 'ne', 'e', 'se', 's', 'sw', 'w'] as const;
@@ -59,10 +59,8 @@ export function SelectionOverlay() {
     if (!single || e.button !== 0) return;
     e.stopPropagation();
     e.preventDefault();
-    const { id, x, y } = single;
-    const pivot = pivotOffset(single);
-    const cx = x + pivot.x;
-    const cy = y + pivot.y;
+    const { id } = single;
+    const { x: cx, y: cy } = resolvePivot(single, elements);
     const rect = overlayRef.current!.getBoundingClientRect();
     useEditor.getState().commit();
     trackPointer(e, (_dx, _dy, ev) => {
@@ -78,19 +76,20 @@ export function SelectionOverlay() {
   return (
     <div ref={overlayRef} className="selection-overlay">
       {selected.map((el) => {
-        const px = el.pivotX ?? 0.5;
-        const py = el.pivotY ?? 0.5;
+        const world = resolvePivot(el, elements);
+        const px = ((world.x - (el.x - el.width / 2)) / el.width) * 100;
+        const py = ((world.y - (el.y - el.height / 2)) / el.height) * 100;
         const style: React.CSSProperties = {
           left: (el.x - el.width / 2) * zoom,
           top: (el.y - el.height / 2) * zoom,
           width: el.width * zoom,
           height: el.height * zoom,
           transform: `rotate(${el.rotation}deg)`,
-          transformOrigin: `${px * 100}% ${py * 100}%`,
+          transformOrigin: `${px}% ${py}%`,
         };
         const isSingle = single?.id === el.id;
         const isAnchor = selected.length > 1 && selectedIds[0] === el.id;
-        const showPivot = isSingle && (px !== 0.5 || py !== 0.5);
+        const showPivot = isSingle && (!!el.pivotTargetId || px !== 50 || py !== 50);
         return (
           <div
             key={el.id}
@@ -101,10 +100,7 @@ export function SelectionOverlay() {
           >
             {isAnchor && <span className="selection-box__anchor-tag">Anchor</span>}
             {showPivot && (
-              <span
-                className="selection-box__pivot"
-                style={{ left: `${px * 100}%`, top: `${py * 100}%` }}
-              />
+              <span className="selection-box__pivot" style={{ left: `${px}%`, top: `${py}%` }} />
             )}
             {isSingle && (
               <>

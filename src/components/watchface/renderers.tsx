@@ -16,13 +16,15 @@ import { COMPLICATION_GLYPHS, ICONS, WEATHER_GLYPHS, type Glyph } from '@/data/i
 import {
   type BoundaryPoint,
   circleBoundaryPoint,
+  clamp,
   describeArc,
   offsetAlongNormal,
-  pivotOffset,
   polar,
+  resolvePivot,
   roundedRectBoundaryPoint,
 } from '@/lib/geometry';
 import { formatTime, handAngle, rotationSourceAngle, sourceValue, WEEKDAYS } from '@/lib/time';
+import { ShadowDefs, useShadowFilterId } from './shadows';
 
 /** Ratio between rendered font size and element box height for text elements */
 export const FONT_HEIGHT_RATIO = 0.78;
@@ -409,17 +411,46 @@ function ProgressBar({
   if (el.variant === 'linear') {
     const w = el.width;
     const t = Math.min(el.thickness, el.height);
-    const rx = el.rounded ? t / 2 : 0;
+    const radius = el.cornerRadius ?? (el.rounded ? t / 2 : 0);
+    if (el.segmented) {
+      const n = Math.max(1, Math.round(el.segmentCount ?? 5));
+      const gap = el.segmentGap ?? 4;
+      const segW = Math.max(1, (w - gap * (n - 1)) / n);
+      const segRx = Math.min(radius, segW / 2, t / 2);
+      return (
+        <g>
+          {Array.from({ length: n }, (_, i) => {
+            const xi = -w / 2 + i * (segW + gap);
+            const segFrac = clamp(fraction * n - i, 0, 1);
+            return (
+              <g key={i}>
+                <rect x={xi} y={-t / 2} width={segW} height={t} rx={segRx} fill={el.trackColor} />
+                {!staticOnly && segFrac > 0 && (
+                  <rect
+                    x={xi}
+                    y={-t / 2}
+                    width={Math.min(segW, Math.max(segRx * 2, segW * segFrac))}
+                    height={t}
+                    rx={segRx}
+                    fill={el.fillColor}
+                  />
+                )}
+              </g>
+            );
+          })}
+        </g>
+      );
+    }
     return (
       <g>
-        <rect x={-w / 2} y={-t / 2} width={w} height={t} rx={rx} fill={el.trackColor} />
+        <rect x={-w / 2} y={-t / 2} width={w} height={t} rx={radius} fill={el.trackColor} />
         {!staticOnly && (
           <rect
             x={-w / 2}
             y={-t / 2}
             width={Math.max(t, w * fraction)}
             height={t}
-            rx={rx}
+            rx={radius}
             fill={el.fillColor}
           />
         )}
@@ -613,19 +644,32 @@ export function ElementNode({
   el,
   data,
   staticOnly,
+  allElements,
 }: {
   el: WatchElement;
   data: LiveData;
   staticOnly?: boolean;
+  /** Full current-mode element list, for resolving pivotTargetId. Defaults to just this element. */
+  allElements?: WatchElement[];
 }) {
   if (!el.visible) return null;
   const rotation = el.rotation + elementTimeRotation(el, data);
-  const pivot = pivotOffset(el);
+  const world = resolvePivot(el, allElements ?? [el]);
+  const pivot = { x: world.x - el.x, y: world.y - el.y };
+  // Filter + rotation share this <g>, so a rotated element's shadow rotates
+  // with it — same as CSS `filter: drop-shadow` under a `transform`.
+  const filterId = useShadowFilterId(el.shadows);
   return (
     <g
       transform={`translate(${el.x} ${el.y}) rotate(${rotation} ${pivot.x} ${pivot.y})`}
       opacity={el.opacity}
+      filter={filterId ? `url(#${filterId})` : undefined}
     >
+      {filterId && (
+        <defs>
+          <ShadowDefs id={filterId} shadows={el.shadows!} />
+        </defs>
+      )}
       <ElementRenderer el={el} data={data} staticOnly={staticOnly} />
     </g>
   );

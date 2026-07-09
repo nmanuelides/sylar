@@ -12,13 +12,13 @@ export function App() {
       <TopBar />
       <main className="app__page">
         <Routes>
-          <Route path="/" element={<Navigate to="/create" replace />} />
+          <Route path="/" element={<Navigate to="/watchfaces" replace />} />
           <Route path="/create" element={<EditorPage />} />
           <Route path="/create/:id" element={<EditorPage />} />
           <Route path="/watchfaces" element={<MyWatchfacesPage />} />
           <Route path="/community" element={<CommunityPage />} />
           <Route path="/docs" element={<DocsPage />} />
-          <Route path="*" element={<Navigate to="/create" replace />} />
+          <Route path="*" element={<Navigate to="/watchfaces" replace />} />
         </Routes>
       </main>
       <Toasts />

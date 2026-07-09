@@ -100,6 +100,7 @@ export function SliderField({
   step = 1,
   suffix,
   displayScale = 1,
+  disabled = false,
 }: CommonProps & {
   value: number;
   onChange: (v: number) => void;
@@ -110,6 +111,7 @@ export function SliderField({
   suffix?: string;
   /** Multiplier between stored value and displayed number (e.g. 100 for fractions shown as %) */
   displayScale?: number;
+  disabled?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
@@ -132,6 +134,7 @@ export function SliderField({
           min={min * displayScale}
           max={max * displayScale}
           step={dispStep}
+          disabled={disabled}
           onFocus={onStart}
           onChange={(e) => {
             setDraft(e.target.value);
@@ -152,6 +155,7 @@ export function SliderField({
           max={max}
           step={step}
           value={value}
+          disabled={disabled}
           onPointerDown={onStart}
           onChange={(e) => onChange(parseFloat(e.target.value))}
         />

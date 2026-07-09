@@ -11,7 +11,7 @@ import { useLiveData } from '@/store/liveDataStore';
 import { ElementNode, elementTimeRotation } from '@/components/watchface/renderers';
 import { deviceShapePath } from '@/components/watchface/WatchfaceSVG';
 import { trackPointer } from '@/lib/drag';
-import { pivotOffset } from '@/lib/geometry';
+import { resolvePivot } from '@/lib/geometry';
 import { buildImageElement } from '@/lib/imageElement';
 import { SelectionOverlay } from './SelectionOverlay';
 
@@ -138,33 +138,37 @@ export function WatchCanvas() {
         </defs>
         <g clipPath={`url(#${clipId})`}>
           <rect width={device.width} height={device.height} fill={background} />
-          {elements.map((el) => (
-            <g
-              key={el.id}
-              onPointerDown={(e) => onElementPointerDown(e, el)}
-              style={{
-                cursor: el.locked ? 'default' : 'move',
-                display: el.visible ? undefined : 'none',
-              }}
-              className={selectedIds.includes(el.id) ? 'is-selected' : undefined}
-            >
-              <ElementNode el={{ ...el, visible: true }} data={data} />
-              {/* generous invisible hit area for thin elements */}
+          {elements.map((el) => {
+            const world = resolvePivot(el, elements);
+            const pivot = { x: world.x - el.x, y: world.y - el.y };
+            return (
               <g
-                transform={`translate(${el.x} ${el.y}) rotate(${
-                  el.rotation + elementTimeRotation(el, data)
-                } ${pivotOffset(el).x} ${pivotOffset(el).y})`}
+                key={el.id}
+                onPointerDown={(e) => onElementPointerDown(e, el)}
+                style={{
+                  cursor: el.locked ? 'default' : 'move',
+                  display: el.visible ? undefined : 'none',
+                }}
+                className={selectedIds.includes(el.id) ? 'is-selected' : undefined}
               >
-                <rect
-                  x={-Math.max(el.width, 16) / 2}
-                  y={-Math.max(el.height, 16) / 2}
-                  width={Math.max(el.width, 16)}
-                  height={Math.max(el.height, 16)}
-                  fill="transparent"
-                />
+                <ElementNode el={{ ...el, visible: true }} data={data} allElements={elements} />
+                {/* generous invisible hit area for thin elements */}
+                <g
+                  transform={`translate(${el.x} ${el.y}) rotate(${
+                    el.rotation + elementTimeRotation(el, data)
+                  } ${pivot.x} ${pivot.y})`}
+                >
+                  <rect
+                    x={-Math.max(el.width, 16) / 2}
+                    y={-Math.max(el.height, 16) / 2}
+                    width={Math.max(el.width, 16)}
+                    height={Math.max(el.height, 16)}
+                    fill="transparent"
+                  />
+                </g>
               </g>
-            </g>
-          ))}
+            );
+          })}
           {mode === 'aod' && (
             <rect
               width={device.width}

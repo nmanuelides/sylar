@@ -12,6 +12,7 @@ import { DEVICES, getDevice } from '@/data/devices';
 import { nearestWeight, weightsFor } from '@/data/fonts';
 import { WEATHER_CONDITIONS } from '@/data/icons';
 import { DATA_SOURCES } from '@/lib/time';
+import { hasPartialShadowSupport, supportsShadow } from '@/lib/elementClassification';
 import { FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import {
   ColorField,
@@ -26,6 +27,7 @@ import {
 } from '@/components/common/PropertyFields';
 import { IconPicker } from '@/components/common/IconPicker';
 import { Svg, UI_ICONS } from '@/components/common/Ui';
+import { ShadowListField } from './ShadowFields';
 
 const ALIGN_BUTTONS: { kind: AlignKind; icon: string; title: string }[] = [
   { kind: 'left', icon: UI_ICONS.alignL, title: 'Align left' },
@@ -127,6 +129,7 @@ function FontFields({
 function ElementProperties({ el }: { el: WatchElement }) {
   const { patch, commitPatch, commit } = useElementPatch(el.id);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
+  const elements = useEditor(selectCurrentElements);
 
   return (
     <>
@@ -156,28 +159,51 @@ function ElementProperties({ el }: { el: WatchElement }) {
           onChange={(v) => patch({ rotation: v })}
           suffix="°"
         />
-        <SliderField
-          label="Pivot X"
-          value={el.pivotX ?? 0.5}
-          min={0}
-          max={1}
-          step={0.001}
-          onStart={commit}
-          onChange={(v) => patch({ pivotX: v })}
-          displayScale={100}
-          suffix="%"
-        />
-        <SliderField
-          label="Pivot Y"
-          value={el.pivotY ?? 0.5}
-          min={0}
-          max={1}
-          step={0.001}
-          onStart={commit}
-          onChange={(v) => patch({ pivotY: v })}
-          displayScale={100}
-          suffix="%"
-        />
+        {(el.type === 'hand' || !!el.rotateWith) && (
+          <>
+            <SliderField
+              label="Pivot X"
+              value={el.pivotX ?? 0.5}
+              min={-1}
+              max={2}
+              step={0.001}
+              disabled={!!el.pivotTargetId}
+              onStart={commit}
+              onChange={(v) => patch({ pivotX: v })}
+              displayScale={100}
+              suffix="%"
+            />
+            <SliderField
+              label="Pivot Y"
+              value={el.pivotY ?? 0.5}
+              min={-1}
+              max={2}
+              step={0.001}
+              disabled={!!el.pivotTargetId}
+              onStart={commit}
+              onChange={(v) => patch({ pivotY: v })}
+              displayScale={100}
+              suffix="%"
+            />
+            <SelectField
+              label="Pivot target"
+              value={el.pivotTargetId ?? 'none'}
+              options={[
+                { value: 'none', label: 'None (use Pivot X/Y)' },
+                ...elements
+                  .filter((e) => e.id !== el.id)
+                  .map((e) => ({ value: e.id, label: e.name })),
+              ]}
+              onChange={(v) => commitPatch({ pivotTargetId: v === 'none' ? undefined : v })}
+            />
+            {el.pivotTargetId && (
+              <p className="props__note">
+                Rotates around "{elements.find((e) => e.id === el.pivotTargetId)?.name}"'s
+                center. Pivot X/Y above are ignored while a target is set.
+              </p>
+            )}
+          </>
+        )}
         <SliderField
           label="Opacity"
           value={el.opacity}
@@ -216,6 +242,15 @@ function ElementProperties({ el }: { el: WatchElement }) {
           </p>
         )}
       </FieldGroup>
+
+      {supportsShadow(el) ? (
+        <ShadowListField el={el} patch={patch} commitPatch={commitPatch} commit={commit} />
+      ) : (
+        <p className="props__note">
+          Shadows aren't available on this element — Zepp OS renders live-updating text as a bare
+          native widget with no image behind it for a shadow to attach to.
+        </p>
+      )}
 
       {el.type === 'complication' && (
         <>
@@ -517,9 +552,59 @@ function ElementProperties({ el }: { el: WatchElement }) {
             onStart={commit}
             onChange={(v) => patch({ thickness: v })}
           />
-          <SwitchField label="Rounded" checked={el.rounded} onChange={(v) => commitPatch({ rounded: v })} />
+          {el.variant === 'linear' && (
+            <>
+              <SliderField
+                label="Corner radius"
+                value={el.cornerRadius ?? (el.rounded ? Math.min(el.thickness, el.height) / 2 : 0)}
+                min={0}
+                max={Math.min(el.thickness, el.height) / 2}
+                step={0.5}
+                onStart={commit}
+                onChange={(v) => patch({ cornerRadius: v })}
+                suffix="px"
+              />
+              <SegmentField
+                label="Fill style"
+                value={el.segmented ? 'segmented' : 'continuous'}
+                options={[
+                  { value: 'continuous', label: 'Continuous' },
+                  { value: 'segmented', label: 'Segmented' },
+                ]}
+                onChange={(v) => commitPatch({ segmented: v === 'segmented' })}
+              />
+              {el.segmented && (
+                <>
+                  <SliderField
+                    label="Segments"
+                    value={el.segmentCount ?? 5}
+                    min={2}
+                    max={12}
+                    step={1}
+                    onStart={commit}
+                    onChange={(v) => patch({ segmentCount: Math.round(v) })}
+                  />
+                  <SliderField
+                    label="Segment gap"
+                    value={el.segmentGap ?? 4}
+                    min={0}
+                    max={20}
+                    step={1}
+                    onStart={commit}
+                    onChange={(v) => patch({ segmentGap: v })}
+                    suffix="px"
+                  />
+                </>
+              )}
+            </>
+          )}
           {el.variant === 'circular' && (
             <>
+              <SwitchField
+                label="Rounded"
+                checked={el.rounded}
+                onChange={(v) => commitPatch({ rounded: v })}
+              />
               <SliderField
                 label="Start angle"
                 value={el.startAngle}
@@ -580,7 +665,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
               <NumberField
                 label="Count"
                 value={el.count}
-                min={2}
+                min={1}
                 max={120}
                 onStart={commit}
                 onChange={(v) => patch({ count: Math.round(v) })}

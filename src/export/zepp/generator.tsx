@@ -9,10 +9,12 @@ import type {
 import { getDevice } from '@/data/devices';
 import { WEATHER_CONDITIONS } from '@/data/icons';
 import { PREVIEW_DATA } from '@/store/liveDataStore';
-import { pivotOffset } from '@/lib/geometry';
+import { resolvePivot } from '@/lib/geometry';
 import { slugify } from '@/lib/download';
+import { hasPartialShadowSupport, isLiveText, supportsShadow } from '@/lib/elementClassification';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { ElementRenderer, FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
+import { ShadowDefs, shadowFilterMargin } from '@/components/watchface/shadows';
 import { dataUrlToBytes, renderNodeToPng } from './rasterize';
 import { RUNTIME_TEMPLATE } from './runtime';
 
@@ -35,6 +37,8 @@ const DEVICE_SOURCES: Record<string, number[]> = {
   balance3: [9568512, 9568513, 9568515],
   gtr4: [7930112, 7930113, 7864577],
   active2: [8913152, 8913153, 8913155, 8913159, 10092800, 10092801, 10092803, 10092807],
+  active3: [10944768, 10944769, 10944771, 10948867],
+  activemax: [10813697, 10813699],
   trex3: [8716544, 8716545, 8716547],
   'cheetah-pro': [8126720, 8126721],
   gts4: [7995648, 7995649],
@@ -85,18 +89,43 @@ function cssToZeppColor(css: string): number {
 
 const isHandLike = (el: WatchElement): boolean => el.type === 'hand' || !!el.rotateWith;
 
-// Zepp OS TEXT/weather-icon widgets can't both stay "live" and rotate, so an
-// element with rotateWith set takes the rotating-baked-snapshot path instead
-// (see renderRotatingElement) rather than the live-updating path below.
-const isLiveText = (el: WatchElement): boolean =>
-  (el.type === 'digitalTime' || el.type === 'number') && !el.rotateWith;
-
 const isLiveWeather = (el: WatchElement): boolean =>
   el.type === 'weatherIcon' && el.condition === 'live' && !el.rotateWith;
 
 /** Elements baked into the static background (chrome of dynamic ones included via staticOnly) */
 const isBaked = (el: WatchElement): boolean =>
   !isHandLike(el) && !isLiveText(el) && !isLiveWeather(el);
+
+// Elements that create at least one native live-updating widget on the watch,
+// on top of (or instead of) anything baked into the flattened background.
+const producesLiveWidget = (el: WatchElement): boolean =>
+  !isBaked(el) || el.type === 'progressBar' || el.type === 'complication';
+
+/**
+ * Zepp OS only has two effective layers around a live widget: the single
+ * flattened background image (bottom) and every native widget it creates
+ * (arcs/bars/texts/weather/hands), which always draws above that image. A
+ * baked element placed above a progress bar/complication/live text/hand in
+ * the editor's layer stack would otherwise get flattened into that same
+ * bottom image and be covered by the live widget's on-top draw. Elements
+ * that come after the first live-producing element are pulled into a
+ * separate overlay image instead, composited above every live widget at the
+ * end of build() — see runtime.ts.
+ */
+function splitBaked(elements: WatchElement[]): { base: WatchElement[]; overlay: WatchElement[] } {
+  const base: WatchElement[] = [];
+  const overlay: WatchElement[] = [];
+  let seenLive = false;
+  for (const el of elements) {
+    if (producesLiveWidget(el)) {
+      if (isBaked(el)) base.push(el);
+      seenLive = true;
+      continue;
+    }
+    (seenLive ? overlay : base).push(el);
+  }
+  return { base, overlay };
+}
 
 function complicationSource(kind: ComplicationElement['kind']): DataSource {
   return kind === 'weather' ? 'weather' : (kind as DataSource);
@@ -129,11 +158,11 @@ export async function generateZeppProject(
 
   /* ------------------------- static backgrounds ------------------------- */
   onProgress('Rendering background');
-  const bakedNormal = project.normal.filter(isBaked);
+  const { base: baseNormal, overlay: overlayNormal } = splitBaked(project.normal);
   files[`${assetsDir}/bg.png`] = await renderNodeToPng(
     <WatchfaceSVG
       device={device}
-      elements={bakedNormal}
+      elements={baseNormal}
       background={project.backgroundColor}
       data={PREVIEW_DATA}
       width={device.width}
@@ -142,14 +171,32 @@ export async function generateZeppProject(
     device.width,
     device.height,
   );
+  const hasOverlay = overlayNormal.length > 0;
+  if (hasOverlay) {
+    onProgress('Rendering overlay');
+    files[`${assetsDir}/overlay.png`] = await renderNodeToPng(
+      <WatchfaceSVG
+        device={device}
+        elements={overlayNormal}
+        background="transparent"
+        data={PREVIEW_DATA}
+        width={device.width}
+        staticOnly
+      />,
+      device.width,
+      device.height,
+    );
+  }
 
   const hasAod = project.aod.length > 0;
+  let hasAodOverlay = false;
   if (hasAod) {
     onProgress('Rendering AOD background');
+    const { base: baseAod, overlay: overlayAod } = splitBaked(project.aod);
     files[`${assetsDir}/aod-bg.png`] = await renderNodeToPng(
       <WatchfaceSVG
         device={device}
-        elements={project.aod.filter(isBaked)}
+        elements={baseAod}
         background={project.aodBackgroundColor}
         data={PREVIEW_DATA}
         width={device.width}
@@ -158,6 +205,41 @@ export async function generateZeppProject(
       device.width,
       device.height,
     );
+    hasAodOverlay = overlayAod.length > 0;
+    if (hasAodOverlay) {
+      onProgress('Rendering AOD overlay');
+      files[`${assetsDir}/aod-overlay.png`] = await renderNodeToPng(
+        <WatchfaceSVG
+          device={device}
+          elements={overlayAod}
+          background="transparent"
+          data={PREVIEW_DATA}
+          width={device.width}
+          staticOnly
+        />,
+        device.width,
+        device.height,
+      );
+    }
+  }
+
+  /* --------------------- shadow export-limitation warnings -------------- */
+  // Progress bars/complications bake their static chrome (track, ring,
+  // label) with the shadow intact, but their live-updating fill/value is a
+  // separate native widget with no shadow support. Live digitalTime/number
+  // text (not rotating, so not baked at all — see renderRotatingElement
+  // below) has no static image behind it whatsoever.
+  for (const el of [...project.normal, ...project.aod]) {
+    if (!el.shadows?.length) continue;
+    if (hasPartialShadowSupport(el)) {
+      warnings.push(
+        `"${el.name}" has a shadow set, but only its static chrome (track/ring/label) can show it — Zepp OS renders its live-updating fill/value as a native widget with no shadow support.`,
+      );
+    } else if (!supportsShadow(el)) {
+      warnings.push(
+        `"${el.name}" has a shadow set, but it's a fully live Zepp OS text widget with no static image behind it — the shadow won't appear on the device.`,
+      );
+    }
   }
 
   /* ------------------------------- preview ------------------------------ */
@@ -211,12 +293,22 @@ export async function generateZeppProject(
         `"${el.name}" rotates, but can't also keep updating its live weather icon — baked showing the preview condition.`,
       );
     }
-    const w = Math.max(2, Math.round(el.width));
-    const h = Math.max(2, Math.round(el.height));
+    const margin = Math.ceil(shadowFilterMargin(el.shadows));
+    const w = Math.max(2, Math.round(el.width)) + margin * 2;
+    const h = Math.max(2, Math.round(el.height)) + margin * 2;
     onProgress(`Rendering ${source} rotator`);
     const png = await renderNodeToPng(
       <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
-        <g transform={`translate(${w / 2} ${h / 2})`} opacity={el.opacity}>
+        <g
+          transform={`translate(${w / 2} ${h / 2})`}
+          opacity={el.opacity}
+          filter={el.shadows?.length ? 'url(#rot-shadow)' : undefined}
+        >
+          {el.shadows?.length ? (
+            <defs>
+              <ShadowDefs id="rot-shadow" shadows={el.shadows} />
+            </defs>
+          ) : null}
           <ElementRenderer el={el} data={PREVIEW_DATA} />
         </g>
       </svg>,
@@ -225,11 +317,11 @@ export async function generateZeppProject(
     );
     const name = `hands/${aod ? 'aod-' : ''}${source}-${index}.png`;
     files[`${assetsDir}/${name}`] = png;
-    const pivot = pivotOffset(el);
-    const cx = Math.round(el.x + pivot.x);
-    const cy = Math.round(el.y + pivot.y);
-    const px = Math.round(w / 2 + pivot.x);
-    const py = Math.round(h / 2 + pivot.y);
+    const world = resolvePivot(el, aod ? project.aod : project.normal);
+    const cx = Math.round(world.x);
+    const cy = Math.round(world.y);
+    const px = Math.round(w / 2 + (world.x - el.x));
+    const py = Math.round(h / 2 + (world.y - el.y));
 
     if (source === 'hour' || source === 'minute' || source === 'second') {
       if (el.rotation !== 0) {
@@ -264,12 +356,22 @@ export async function generateZeppProject(
     if (el.type !== 'weatherIcon' || !el.visible) continue;
     onProgress('Rendering weather icons');
     const dir = `weather-${i}`;
-    const w = Math.round(el.width);
-    const h = Math.round(el.height);
+    const margin = Math.ceil(shadowFilterMargin(el.shadows));
+    const w = Math.round(el.width) + margin * 2;
+    const h = Math.round(el.height) + margin * 2;
     for (const cond of WEATHER_CONDITIONS) {
       files[`${assetsDir}/${dir}/${cond.value}.png`] = await renderNodeToPng(
         <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
-          <g transform={`translate(${w / 2} ${h / 2})`} opacity={el.opacity}>
+          <g
+            transform={`translate(${w / 2} ${h / 2})`}
+            opacity={el.opacity}
+            filter={el.shadows?.length ? 'url(#weather-shadow)' : undefined}
+          >
+            {el.shadows?.length ? (
+              <defs>
+                <ShadowDefs id="weather-shadow" shadows={el.shadows} />
+              </defs>
+            ) : null}
             <ElementRenderer
               el={{ ...el, condition: cond.value as never }}
               data={PREVIEW_DATA}
@@ -302,6 +404,10 @@ export async function generateZeppProject(
   const bars: {
     x: number; y: number; w: number; h: number; color: number;
     radius: number; source: DataSource; aod: boolean;
+    // Segmented linear bars: geometry above is for segment 0; runtime.ts
+    // expands this into `segments` separate FILL_RECT widgets spaced `gap`
+    // apart, since Zepp OS has no native multi-block fill widget.
+    segments?: number; gap?: number;
   }[] = [];
 
   // Google Fonts aren't TTF files we already have — the build server fetches
@@ -455,16 +561,41 @@ export async function generateZeppProject(
           }
         } else {
           const t = Math.min(el.thickness, el.height);
-          bars.push({
-            x: Math.round(el.x - el.width / 2),
-            y: Math.round(el.y - t / 2),
-            w: Math.round(el.width),
-            h: Math.round(t),
-            radius: el.rounded ? Math.round(t / 2) : 0,
-            color: cssToZeppColor(el.fillColor),
-            source: el.source,
-            aod,
-          });
+          const radius = el.cornerRadius ?? (el.rounded ? t / 2 : 0);
+          if (el.segmented) {
+            const n = Math.max(1, Math.round(el.segmentCount ?? 5));
+            const gap = el.segmentGap ?? 4;
+            const segW = Math.max(1, (el.width - gap * (n - 1)) / n);
+            const segRx = Math.min(radius, segW / 2, t / 2);
+            bars.push({
+              x: Math.round(el.x - el.width / 2),
+              y: Math.round(el.y - t / 2),
+              w: Math.round(segW),
+              h: Math.round(t),
+              radius: Math.round(segRx),
+              color: cssToZeppColor(el.fillColor),
+              source: el.source,
+              aod,
+              segments: n,
+              gap: Math.round(gap),
+            });
+            if (n > 8) {
+              warnings.push(
+                `"${el.name}" uses ${n} segments — each is a separate native widget; very high segment counts across many bars may add up.`,
+              );
+            }
+          } else {
+            bars.push({
+              x: Math.round(el.x - el.width / 2),
+              y: Math.round(el.y - t / 2),
+              w: Math.round(el.width),
+              h: Math.round(t),
+              radius: Math.round(radius),
+              color: cssToZeppColor(el.fillColor),
+              source: el.source,
+              aod,
+            });
+          }
           if (el.rotation !== 0) {
             warnings.push(`"${el.name}" rotation is ignored — linear bars export axis-aligned.`);
           }
@@ -482,6 +613,8 @@ export async function generateZeppProject(
     width: device.width,
     height: device.height,
     hasAod,
+    hasOverlay,
+    hasAodOverlay,
     texts,
     arcs,
     bars,

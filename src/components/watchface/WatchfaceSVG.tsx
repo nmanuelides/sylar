@@ -60,7 +60,7 @@ export function WatchfaceSVG({
       <g clipPath={`url(#${clipId})`}>
         <rect width={device.width} height={device.height} fill={background} />
         {elements.map((el) => (
-          <ElementNode key={el.id} el={el} data={data} staticOnly={staticOnly} />
+          <ElementNode key={el.id} el={el} data={data} staticOnly={staticOnly} allElements={elements} />
         ))}
         {aodDim && (
           <rect
