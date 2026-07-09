@@ -165,18 +165,11 @@ export function loadFontCatalog(): Promise<CatalogFont[]> {
   return catalogPromise;
 }
 
-// Families already present via the <link> in index.html
-const loaded = new Set<string>([
-  'Inter',
-  'Chakra Petch',
-  'Orbitron',
-  'Rajdhani',
-  'Oswald',
-  'Audiowide',
-  'Michroma',
-  'Share Tech Mono',
-  'Roboto Mono',
-]);
+// index.html has a <link> for a curated starter set, purely so first paint
+// doesn't flash unstyled text — but that cross-origin <link>'s cssRules can't
+// be read back by html-to-image (see injectGoogleFont), so it doesn't count
+// as "loaded" here. Every family still gets inlined on first real use below.
+const loaded = new Set<string>();
 
 /**
  * Registers an uploaded TTF/OTF font via an injected @font-face rule.
@@ -192,13 +185,31 @@ export function registerCustomFont(family: string, src: string): void {
   document.head.appendChild(style);
 }
 
-function injectGoogleFont(family: string, weights: number[]): void {
+/**
+ * Loads the Google Font CSS ourselves and inlines it as a <style> tag rather
+ * than a <link>. A cross-origin <link>'s cssRules can't be read back by JS
+ * (SecurityError), which makes html-to-image silently fail to embed the font
+ * when baking PNGs — text bakes with a fallback font even though the font
+ * displays fine on-screen and in native (non-baked) text widgets. An inlined
+ * same-origin <style> has readable cssRules, so baking works too.
+ */
+async function injectGoogleFont(family: string, weights: number[]): Promise<void> {
   const sorted = [...weights].sort((a, b) => a - b);
   const axis = sorted.length > 1 || sorted[0] !== 400 ? `:wght@${sorted.join(';')}` : '';
-  const link = document.createElement('link');
-  link.rel = 'stylesheet';
-  link.href = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}${axis}&display=swap`;
-  document.head.appendChild(link);
+  const url = `https://fonts.googleapis.com/css2?family=${family.replace(/ /g, '+')}${axis}&display=swap`;
+  try {
+    const res = await fetch(url);
+    const css = await res.text();
+    const style = document.createElement('style');
+    style.setAttribute('data-sylar-font', family);
+    style.textContent = css;
+    document.head.appendChild(style);
+  } catch {
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = url;
+    document.head.appendChild(link);
+  }
 }
 
 /** Injects the Google Fonts stylesheet for a family exactly once. */
@@ -207,7 +218,7 @@ export function ensureFontLoaded(family: string): void {
   loaded.add(family);
   const weights = FONTS.find((x) => x.value === family)?.weights ?? dynamicWeights[family];
   if (weights) {
-    injectGoogleFont(family, weights);
+    void injectGoogleFont(family, weights);
     return;
   }
   // Unknown family (e.g. project saved with a catalog font, fresh session):
@@ -216,4 +227,9 @@ export function ensureFontLoaded(family: string): void {
     const entry = catalog.find((x) => x.family === family);
     injectGoogleFont(family, entry?.weights ?? [400]);
   });
+}
+
+/** Every family loaded so far this session (Google + custom uploads). */
+export function loadedFontFamilies(): string[] {
+  return [...loaded];
 }

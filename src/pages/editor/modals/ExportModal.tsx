@@ -21,8 +21,30 @@ export function ExportModal() {
   const aodRef = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [zeppStep, setZeppStep] = useState<string | null>(null);
-  const [installStep, setInstallStep] = useState<string | null>(null);
+  // Real progress: generateZeppProject knows its exact render-step count up
+  // front (see generator.tsx) and reports (current, total) as it goes. The
+  // network upload + server compile that follows has no such signal, so it's
+  // shown as an indeterminate (pulsing) tail on the same bar instead of
+  // pretending to know how far along it is.
+  const [installState, setInstallState] = useState<
+    { phase: 'render'; current: number; total: number } | { phase: 'compile' } | null
+  >(null);
   const [installQr, setInstallQr] = useState<{ qr: string; url: string } | null>(null);
+  const SEGMENT_COUNT = 16;
+  const RENDER_SEGMENTS = 12;
+  const filledSegments = installQr
+    ? SEGMENT_COUNT
+    : installState?.phase === 'render'
+      ? Math.round((installState.current / installState.total) * RENDER_SEGMENTS)
+      : installState?.phase === 'compile'
+        ? RENDER_SEGMENTS
+        : 0;
+  const installLabel =
+    installState === null
+      ? 'Install'
+      : installState.phase === 'compile'
+        ? 'Compiling…'
+        : `Rendering… (${installState.current}/${installState.total})`;
   const [exportWarnings, setExportWarnings] = useState<string[]>([]);
   const buildServer = (import.meta.env.VITE_BUILD_SERVER_URL as string | undefined)?.replace(
     /\/$/,
@@ -34,10 +56,12 @@ export function ExportModal() {
     setInstallQr(null);
     setExportWarnings([]);
     try {
-      setInstallStep('Rendering…');
-      const { zip, warnings } = await generateZeppProject(project, setInstallStep);
+      setInstallState({ phase: 'render', current: 0, total: 1 });
+      const { zip, warnings } = await generateZeppProject(project, (_label, current, total) =>
+        setInstallState({ phase: 'render', current, total }),
+      );
       setExportWarnings(warnings);
-      setInstallStep('Compiling on server…');
+      setInstallState({ phase: 'compile' });
       const res = await fetch(
         `${buildServer}/api/build?mode=qr&res=${device.width}x${device.height}`,
         {
@@ -59,7 +83,7 @@ export function ExportModal() {
     } catch (err) {
       toast(`Install build failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error');
     } finally {
-      setInstallStep(null);
+      setInstallState(null);
     }
   };
 
@@ -67,7 +91,9 @@ export function ExportModal() {
     setZeppStep('Preparing…');
     setExportWarnings([]);
     try {
-      const { zip, filename, warnings } = await generateZeppProject(project, setZeppStep);
+      const { zip, filename, warnings } = await generateZeppProject(project, (label) =>
+        setZeppStep(label),
+      );
       setExportWarnings(warnings);
       const url = URL.createObjectURL(
         new Blob([zip as unknown as BlobPart], { type: 'application/zip' }),
@@ -176,14 +202,38 @@ export function ExportModal() {
             </div>
             <button
               className="btn btn--primary"
-              disabled={installStep !== null}
+              disabled={installState !== null}
               onClick={installOnWatch}
             >
               <Svg d={UI_ICONS.export} size={13} />
-              {installStep ?? 'Install'}
+              {installState === null ? 'Install' : installLabel}
             </button>
           </div>
-        ) : (
+        ) : null}
+        {buildServer && (installState !== null || installQr) && (
+          <div className="export__progress">
+            <div className="export__segments">
+              {Array.from({ length: SEGMENT_COUNT }, (_, i) => {
+                const active = installState?.phase === 'compile' && i >= filledSegments;
+                return (
+                  <div
+                    key={i}
+                    className={
+                      'export__segment' +
+                      (i < filledSegments ? ' export__segment--done' : '') +
+                      (active ? ' export__segment--active' : '')
+                    }
+                    style={active ? { animationDelay: `${(i - filledSegments) * 0.08}s` } : undefined}
+                  />
+                );
+              })}
+            </div>
+            <span className="export__progress-label">
+              {installQr ? 'Ready' : installLabel}
+            </span>
+          </div>
+        )}
+        {!buildServer && (
           <p className="export__note">
             Tip: run the bundled build server (see <code>server/README.md</code>) and set{' '}
             <code>VITE_BUILD_SERVER_URL</code> to get a one-click “Install on watch” QR here.

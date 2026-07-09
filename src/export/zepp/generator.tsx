@@ -17,7 +17,7 @@ import { DEFAULT_LANGUAGE, MONTH_NAMES, WEEKDAY_NAMES } from '@/lib/i18n';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { ElementRenderer, FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import { ShadowDefs, shadowFilterMargin } from '@/components/watchface/shadows';
-import { dataUrlToBytes, renderNodeToPng } from './rasterize';
+import { dataUrlToBytes, renderNodeToPng, renderGlyphToPng } from './rasterize';
 import { RUNTIME_TEMPLATE } from './runtime';
 
 export interface ZeppExportResult {
@@ -135,7 +135,7 @@ function complicationSource(kind: ComplicationElement['kind']): DataSource {
 
 export async function generateZeppProject(
   project: WatchfaceProject,
-  onProgress: (step: string) => void,
+  onProgress: (step: string, current: number, total: number) => void,
 ): Promise<ZeppExportResult> {
   const warnings: string[] = [];
   const language = project.language ?? DEFAULT_LANGUAGE;
@@ -160,9 +160,43 @@ export async function generateZeppProject(
     return font ? `fonts/${slugify(font.family)}.ttf` : undefined;
   };
 
-  /* ------------------------- static backgrounds ------------------------- */
-  onProgress('Rendering background');
+  /* --------------------- total step count, for progress ------------------ */
+  // Computed up front (reusing the same splits/filters the real work below
+  // uses) so onProgress can report a real fraction instead of just a label.
   const { base: baseNormal, overlay: overlayNormal } = splitBaked(project.normal);
+  const hasOverlay = overlayNormal.length > 0;
+  const hasAod = project.aod.length > 0;
+  const { base: baseAod, overlay: overlayAod } = hasAod
+    ? splitBaked(project.aod)
+    : { base: [], overlay: [] };
+  const hasAodOverlay = hasAod && overlayAod.length > 0;
+  const handCount =
+    project.normal.filter((el) => isHandLike(el) && el.visible).length +
+    project.aod.filter((el) => isHandLike(el) && el.visible).length;
+  const liveWeatherEls = [
+    ...project.normal.filter(isLiveWeather).map((el) => ({ el, aod: false })),
+    ...project.aod.filter(isLiveWeather).map((el) => ({ el, aod: true })),
+  ];
+  const weatherIconCount = liveWeatherEls.filter(({ el }) => el.visible).length;
+  const nativeWeatherCount = [...project.normal, ...project.aod].filter(
+    (el) => el.visible && el.type === 'number' && el.source === 'weather' && el.nativeWeather,
+  ).length;
+  const totalSteps =
+    1 + // background
+    (hasOverlay ? 1 : 0) +
+    (hasAod ? 1 : 0) +
+    (hasAodOverlay ? 1 : 0) +
+    1 + // preview icon
+    handCount +
+    weatherIconCount +
+    nativeWeatherCount +
+    1 + // generating code
+    1; // zipping
+  let stepIndex = 0;
+  const step = (label: string) => onProgress(label, ++stepIndex, totalSteps);
+
+  /* ------------------------- static backgrounds ------------------------- */
+  step('Rendering background');
   files[`${assetsDir}/bg.png`] = await renderNodeToPng(
     <WatchfaceSVG
       device={device}
@@ -175,9 +209,8 @@ export async function generateZeppProject(
     device.width,
     device.height,
   );
-  const hasOverlay = overlayNormal.length > 0;
   if (hasOverlay) {
-    onProgress('Rendering overlay');
+    step('Rendering overlay');
     files[`${assetsDir}/overlay.png`] = await renderNodeToPng(
       <WatchfaceSVG
         device={device}
@@ -192,11 +225,8 @@ export async function generateZeppProject(
     );
   }
 
-  const hasAod = project.aod.length > 0;
-  let hasAodOverlay = false;
   if (hasAod) {
-    onProgress('Rendering AOD background');
-    const { base: baseAod, overlay: overlayAod } = splitBaked(project.aod);
+    step('Rendering AOD background');
     files[`${assetsDir}/aod-bg.png`] = await renderNodeToPng(
       <WatchfaceSVG
         device={device}
@@ -209,9 +239,8 @@ export async function generateZeppProject(
       device.width,
       device.height,
     );
-    hasAodOverlay = overlayAod.length > 0;
     if (hasAodOverlay) {
-      onProgress('Rendering AOD overlay');
+      step('Rendering AOD overlay');
       files[`${assetsDir}/aod-overlay.png`] = await renderNodeToPng(
         <WatchfaceSVG
           device={device}
@@ -247,7 +276,7 @@ export async function generateZeppProject(
   }
 
   /* ------------------------------- preview ------------------------------ */
-  onProgress('Rendering preview icon');
+  step('Rendering preview icon');
   files[`${assetsDir}/icon.png`] = await renderNodeToPng(
     <WatchfaceSVG
       device={device}
@@ -300,7 +329,7 @@ export async function generateZeppProject(
     const margin = Math.ceil(shadowFilterMargin(el.shadows));
     const w = Math.max(2, Math.round(el.width)) + margin * 2;
     const h = Math.max(2, Math.round(el.height)) + margin * 2;
-    onProgress(`Rendering ${source} rotator`);
+    step(`Rendering ${source} rotator`);
     const png = await renderNodeToPng(
       <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
         <g
@@ -351,14 +380,10 @@ export async function generateZeppProject(
 
   /* -------------------------- live weather icons ------------------------ */
   const weathers: { x: number; y: number; dir: string; aod: boolean }[] = [];
-  const liveWeatherEls = [
-    ...project.normal.filter(isLiveWeather).map((el) => ({ el, aod: false })),
-    ...project.aod.filter(isLiveWeather).map((el) => ({ el, aod: true })),
-  ];
   for (let i = 0; i < liveWeatherEls.length; i++) {
     const { el, aod } = liveWeatherEls[i];
     if (el.type !== 'weatherIcon' || !el.visible) continue;
-    onProgress('Rendering weather icons');
+    step('Rendering weather icons');
     const dir = `weather-${i}`;
     const margin = Math.ceil(shadowFilterMargin(el.shadows));
     const w = Math.round(el.width) + margin * 2;
@@ -463,7 +488,7 @@ export async function generateZeppProject(
           warnings.push(`"${el.name}" rotation is ignored — Zepp OS text widgets can't rotate.`);
         }
       } else if (el.type === 'number' && el.source === 'weather' && el.nativeWeather) {
-        onProgress('Rendering temperature digits');
+        step('Rendering temperature digits');
         // Per-glyph sprite box (one digit character), not the overall widget
         // box below — TEXT_IMG lays glyphs out itself from these.
         const glyphH = Math.round(el.height);
@@ -471,24 +496,7 @@ export async function generateZeppProject(
         const fontSize = Math.round(glyphH * FONT_HEIGHT_RATIO);
         const idx = textImgIndex++;
         const renderGlyph = (ch: string) =>
-          renderNodeToPng(
-            <svg viewBox={`0 0 ${glyphW} ${glyphH}`} width={glyphW} height={glyphH} xmlns="http://www.w3.org/2000/svg">
-              <text
-                x={glyphW / 2}
-                y={glyphH / 2}
-                textAnchor="middle"
-                dominantBaseline="central"
-                fontFamily={el.fontFamily}
-                fontWeight={el.fontWeight}
-                fontSize={fontSize}
-                fill={el.color}
-              >
-                {ch}
-              </text>
-            </svg>,
-            glyphW,
-            glyphH,
-          );
+          renderGlyphToPng(ch, glyphW, glyphH, el.fontFamily, el.fontWeight, fontSize, el.color);
         const fontArray: string[] = [];
         for (const digit of '0123456789') {
           const name = `fontimg/${idx}/${digit}.png`;
@@ -509,9 +517,6 @@ export async function generateZeppProject(
           imperialUnitEn: '°F',
           aod,
         });
-        warnings.push(
-          `"${el.name}" uses the device's native live-temperature widget — the editor preview can't simulate it (it'll keep showing the high/low estimate here), and actual support may vary by watch model.`,
-        );
       } else if (el.type === 'number') {
         texts.push({
           kind: 'source',
@@ -673,7 +678,7 @@ export async function generateZeppProject(
   if (hasAod) await collect(project.aod, true);
 
   /* ------------------------------ code files ---------------------------- */
-  onProgress('Generating code');
+  step('Generating code');
   const spec = {
     width: device.width,
     height: device.height,
@@ -800,7 +805,7 @@ ${warnings.length ? `\n## Export warnings\n\n${warnings.map((w) => `- ${w}`).joi
   files['watchface/index.js'] = strToU8(indexJs);
   files['README.md'] = strToU8(readme);
 
-  onProgress('Zipping');
+  step('Zipping');
   const zip = zipSync(files, { level: 6 });
   return { zip, filename: `${slugify(project.name)}-zeppos.zip`, warnings };
 }

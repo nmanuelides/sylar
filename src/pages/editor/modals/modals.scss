@@ -93,6 +93,39 @@
     }
   }
 
+  &__progress {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  &__progress-label {
+    @include label;
+    font-size: 10px;
+    color: $text-3;
+  }
+
+  &__segments {
+    display: flex;
+    gap: 3px;
+  }
+
+  &__segment {
+    flex: 1;
+    height: 6px;
+    border-radius: 2px;
+    background: $line-soft;
+    transition: background 0.2s ease;
+
+    &--done {
+      background: $accent-bright;
+    }
+
+    &--active {
+      animation: export-segment-pulse 1.1s ease-in-out infinite;
+    }
+  }
+
   &__qr {
     display: flex;
     gap: 18px;
@@ -153,5 +186,14 @@
     li + li {
       margin-top: 6px;
     }
+  }
+}
+
+@keyframes export-segment-pulse {
+  0%, 100% {
+    background: $line-soft;
+  }
+  50% {
+    background: $accent-bright;
   }
 }
