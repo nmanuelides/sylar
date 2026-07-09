@@ -63,6 +63,7 @@ function FontFields({
   patch,
   commitPatch,
   commit,
+  allowGradient = true,
 }: {
   el: {
     fontFamily: string;
@@ -75,6 +76,8 @@ function FontFields({
   patch: (p: Record<string, unknown>) => void;
   commitPatch: (p: Record<string, unknown>) => void;
   commit: () => void;
+  /** False for a fully-live Zepp OS text widget, which can only take a solid color. */
+  allowGradient?: boolean;
 }) {
   const changeFamily = (family: string) => {
     const patchObj: Record<string, unknown> = { fontFamily: family };
@@ -114,6 +117,7 @@ function FontFields({
         onStart={commit}
         onChange={(v) => patch({ color: v })}
         bindingKey={elementBindingKey(elementId, 'color')}
+        allowGradient={allowGradient}
       />
       {el.letterSpacing !== undefined && (
         <SliderField
@@ -317,7 +321,12 @@ function ElementProperties({ el }: { el: WatchElement }) {
               onStart={commit}
               onChange={(v) => patch({ valueColor: v })}
               bindingKey={elementBindingKey(el.id, 'valueColor')}
+              allowGradient={false}
             />
+            <p className="props__note">
+              No gradient here — this value is a live native Zepp OS text widget with a solid color
+              only.
+            </p>
             <FontField
               label="Font"
               value={el.valueFont ?? el.fontFamily}
@@ -361,7 +370,12 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ labelColor: v })}
                 bindingKey={elementBindingKey(el.id, 'labelColor')}
+                allowGradient={false}
               />
+              <p className="props__note">
+                No gradient here — this text is a live native Zepp OS text widget with a solid color
+                only.
+              </p>
               <FontField
                 label="Font"
                 value={el.labelFont ?? el.fontFamily}
@@ -451,7 +465,20 @@ function ElementProperties({ el }: { el: WatchElement }) {
               onChange={(v) => commitPatch({ showAmPm: v })}
             />
           )}
-          <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
+          <FontFields
+            el={el}
+            elementId={el.id}
+            patch={patch}
+            commitPatch={commitPatch}
+            commit={commit}
+            allowGradient={supportsShadow(el)}
+          />
+          {!supportsShadow(el) && (
+            <p className="props__note">
+              Gradients aren't available here — Zepp OS renders live-updating text as a bare native
+              widget with a solid color only.
+            </p>
+          )}
         </FieldGroup>
       )}
 
@@ -478,7 +505,20 @@ function ElementProperties({ el }: { el: WatchElement }) {
             </>
           )}
           <SwitchField label="Unit" checked={el.showUnit} onChange={(v) => commitPatch({ showUnit: v })} />
-          <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
+          <FontFields
+            el={el}
+            elementId={el.id}
+            patch={patch}
+            commitPatch={commitPatch}
+            commit={commit}
+            allowGradient={supportsShadow(el)}
+          />
+          {!supportsShadow(el) && (
+            <p className="props__note">
+              Gradients aren't available here — Zepp OS renders live-updating text as a bare native
+              widget with a solid color only.
+            </p>
+          )}
         </FieldGroup>
       )}
 
@@ -578,7 +618,12 @@ function ElementProperties({ el }: { el: WatchElement }) {
             onStart={commit}
             onChange={(v) => patch({ fillColor: v })}
             bindingKey={elementBindingKey(el.id, 'fillColor')}
+            allowGradient={false}
           />
+          <p className="props__note">
+            No gradient on the fill — it's a live native Zepp OS widget with a solid color only.
+            The track below is baked into the background and can use one.
+          </p>
           <ColorField
             label="Track"
             value={el.trackColor}
@@ -702,6 +747,29 @@ function ElementProperties({ el }: { el: WatchElement }) {
             checked={el.showTicks ?? true}
             onChange={(v) => commitPatch({ showTicks: v })}
           />
+          {/* Shared by ticks and labels, so it's not gated behind either —
+              a Labels-only ring (ticks off) still needs to pick its shape. */}
+          <SegmentField
+            label="Layout"
+            value={el.layout ?? 'circle'}
+            options={[
+              { value: 'circle', label: 'Circle' },
+              { value: 'rect', label: 'Rectangle' },
+            ]}
+            onChange={(v) => commitPatch({ layout: v })}
+          />
+          {el.layout === 'rect' && (
+            <SliderField
+              label="Track radius"
+              value={el.pathCornerRadius ?? 0}
+              min={0}
+              max={Math.min(el.width, el.height) / 2}
+              step={1}
+              onStart={commit}
+              onChange={(v) => patch({ pathCornerRadius: v })}
+              suffix="px"
+            />
+          )}
           {(el.showTicks ?? true) && (
             <>
               <NumberField
@@ -720,27 +788,6 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ majorEvery: Math.round(v) })}
               />
-              <SegmentField
-                label="Layout"
-                value={el.layout ?? 'circle'}
-                options={[
-                  { value: 'circle', label: 'Circle' },
-                  { value: 'rect', label: 'Rectangle' },
-                ]}
-                onChange={(v) => commitPatch({ layout: v })}
-              />
-              {el.layout === 'rect' && (
-                <SliderField
-                  label="Track radius"
-                  value={el.pathCornerRadius ?? 0}
-                  min={0}
-                  max={Math.min(el.width, el.height) / 2}
-                  step={1}
-                  onStart={commit}
-                  onChange={(v) => patch({ pathCornerRadius: v })}
-                  suffix="px"
-                />
-              )}
               <SegmentField
                 label="Shape"
                 value={el.shape}

@@ -10,6 +10,8 @@ import {
 import { useEffectiveLiveData } from '@/store/liveDataStore';
 import { ElementNode, elementTimeRotation } from '@/components/watchface/renderers';
 import { deviceShapePath } from '@/components/watchface/WatchfaceSVG';
+import { GradientDef } from '@/components/watchface/gradientDefs';
+import { decodeGradient, isGradientValue } from '@/lib/gradient';
 import { trackPointer } from '@/lib/drag';
 import { resolvePivot } from '@/lib/geometry';
 import { buildImageElement } from '@/lib/imageElement';
@@ -24,10 +26,12 @@ export function WatchCanvas() {
   const rawId = useId();
   const clipId = `canvasclip-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const gridId = `canvasgrid-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const bgId = `canvasbg-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
   const project = useEditor((s) => s.project);
   const mode = useEditor((s) => s.mode);
   const elements = useEditor(selectCurrentElements);
   const background = useEditor(selectBackground);
+  const bgGradient = isGradientValue(background) ? decodeGradient(background) : null;
   const zoom = useEditor((s) => s.zoom);
   const showGrid = useEditor((s) => s.showGrid);
   const gridSize = useEditor((s) => s.gridSize);
@@ -136,9 +140,14 @@ export function WatchCanvas() {
               strokeWidth={1 / zoom}
             />
           </pattern>
+          {bgGradient && <GradientDef id={bgId} spec={bgGradient} />}
         </defs>
         <g clipPath={`url(#${clipId})`}>
-          <rect width={device.width} height={device.height} fill={background} />
+          <rect
+            width={device.width}
+            height={device.height}
+            fill={bgGradient ? `url(#${bgId})` : background}
+          />
           {elements.map((el) => {
             const world = resolvePivot(el, elements);
             const pivot = { x: world.x - el.x, y: world.y - el.y };

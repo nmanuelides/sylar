@@ -156,6 +156,7 @@ export function ShadowListField({
                   value={s.color}
                   onStart={commit}
                   onChange={(v) => updateShadow(s.id, { color: v }, true)}
+                  allowGradient={false}
                 />
               </div>
             )}

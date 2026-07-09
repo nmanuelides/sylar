@@ -2,6 +2,15 @@ import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'rea
 import { ensureFontLoaded, FONT_CATEGORIES, FONTS } from '@/data/fonts';
 import { useEditor } from '@/store/editorStore';
 import { isValidColor, useColorHistory } from '@/store/colorHistoryStore';
+import {
+  decodeGradient,
+  defaultGradient,
+  encodeGradient,
+  gradientFallbackColor,
+  isGradientValue,
+  type GradientSpec,
+  type GradientStop,
+} from '@/lib/gradient';
 import { FontPicker } from './FontPicker';
 import { Svg, UI_ICONS } from './Ui';
 import './fields.scss';
@@ -226,11 +235,14 @@ export function ColorField({
   onChange,
   onStart,
   bindingKey,
+  allowGradient = true,
 }: CommonProps & {
   value: string;
   onChange: (v: string) => void;
   /** Enables "bind to theme color" when provided — a stable id like `elementBindingKey(el.id, 'color')` */
   bindingKey?: string;
+  /** Set false for paints that can't take a gradient (e.g. an SVG feFlood shadow color). */
+  allowGradient?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
@@ -240,6 +252,8 @@ export function ColorField({
   const toggleFavorite = useColorHistory((s) => s.toggleFavorite);
   const isFav = isValidColor(value) && favorites.includes(value.trim().toLowerCase());
   const chips = [...favorites, ...recent].slice(0, 12);
+  const gradientSpec = allowGradient ? decodeGradient(value) : null;
+  const isGradient = gradientSpec !== null;
 
   const theme = useEditor((s) => s.project.theme ?? []);
   const boundThemeId = useEditor((s) =>
@@ -256,9 +270,38 @@ export function ColorField({
     onChange(c);
   };
 
+  const switchToSolid = () => {
+    if (!gradientSpec) return;
+    onStart?.();
+    onChange(gradientFallbackColor(gradientSpec));
+  };
+  const switchToGradient = () => {
+    if (gradientSpec) return;
+    onStart?.();
+    onChange(encodeGradient(defaultGradient(isValidColor(value) ? value : '#4fc3ff')));
+  };
+
   return (
     <FieldRow label={label}>
       <div className="color-field">
+        {!isBound && allowGradient && (
+          <div className="color-field__mode segment-field">
+            <button type="button" className={!isGradient ? 'is-active' : ''} onClick={switchToSolid}>
+              Solid
+            </button>
+            <button type="button" className={isGradient ? 'is-active' : ''} onClick={switchToGradient}>
+              Gradient
+            </button>
+          </div>
+        )}
+        {isGradient && gradientSpec ? (
+          <GradientEditor
+            spec={gradientSpec}
+            onStart={onStart}
+            onChange={(spec) => onChange(encodeGradient(spec))}
+          />
+        ) : (
+          <>
         <div className="color-field__main">
           <span
             className={`color-field__swatch ${isBound ? 'is-bound' : ''}`}
@@ -346,8 +389,123 @@ export function ColorField({
             ))}
           </div>
         )}
+          </>
+        )}
       </div>
     </FieldRow>
+  );
+}
+
+/* --------------------------- GradientEditor ------------------------------ */
+
+function clamp01(v: number): number {
+  return Math.min(1, Math.max(0, v));
+}
+
+function cssGradientPreview(spec: GradientSpec): string {
+  const stops = [...spec.stops]
+    .sort((a, b) => a.offset - b.offset)
+    .map((s) => `${s.color} ${Math.round(s.offset * 100)}%`)
+    .join(', ');
+  return spec.kind === 'radial' ? `radial-gradient(circle, ${stops})` : `linear-gradient(${spec.angle}deg, ${stops})`;
+}
+
+function GradientEditor({
+  spec,
+  onChange,
+  onStart,
+}: {
+  spec: GradientSpec;
+  onChange: (spec: GradientSpec) => void;
+  onStart?: () => void;
+}) {
+  const setStop = (i: number, patch: Partial<GradientStop>) => {
+    onChange({ ...spec, stops: spec.stops.map((s, idx) => (idx === i ? { ...s, ...patch } : s)) });
+  };
+  const addStop = () => {
+    onStart?.();
+    const last = spec.stops[spec.stops.length - 1];
+    onChange({ ...spec, stops: [...spec.stops, { offset: 1, color: last?.color ?? '#ffffff' }] });
+  };
+  const removeStop = (i: number) => {
+    if (spec.stops.length <= 2) return;
+    onStart?.();
+    onChange({ ...spec, stops: spec.stops.filter((_, idx) => idx !== i) });
+  };
+
+  return (
+    <div className="gradient-editor">
+      <div className="gradient-editor__preview" style={{ background: cssGradientPreview(spec) }} />
+      <div className="segment-field">
+        <button
+          type="button"
+          className={spec.kind === 'linear' ? 'is-active' : ''}
+          onClick={() => {
+            onStart?.();
+            onChange({ ...spec, kind: 'linear' });
+          }}
+        >
+          Linear
+        </button>
+        <button
+          type="button"
+          className={spec.kind === 'radial' ? 'is-active' : ''}
+          onClick={() => {
+            onStart?.();
+            onChange({ ...spec, kind: 'radial' });
+          }}
+        >
+          Radial
+        </button>
+      </div>
+      {spec.kind === 'linear' && (
+        <div className="gradient-editor__angle">
+          <input
+            type="range"
+            min={0}
+            max={360}
+            value={spec.angle}
+            onPointerDown={onStart}
+            onChange={(e) => onChange({ ...spec, angle: parseFloat(e.target.value) })}
+          />
+          <span>{Math.round(spec.angle)}°</span>
+        </div>
+      )}
+      <div className="gradient-editor__stops">
+        {spec.stops.map((s, i) => (
+          <div className="gradient-editor__stop" key={i}>
+            <input
+              type="color"
+              value={/^#[0-9a-fA-F]{6}$/.test(s.color) ? s.color : '#ffffff'}
+              onFocus={onStart}
+              onChange={(e) => setStop(i, { color: e.target.value })}
+            />
+            <input
+              type="number"
+              min={0}
+              max={100}
+              value={Math.round(s.offset * 100)}
+              onFocus={onStart}
+              onChange={(e) => setStop(i, { offset: clamp01(parseFloat(e.target.value) / 100) })}
+            />
+            <span>%</span>
+            <button
+              type="button"
+              className="icon-btn"
+              disabled={spec.stops.length <= 2}
+              title="Remove stop"
+              onClick={() => removeStop(i)}
+            >
+              <Svg d={UI_ICONS.close} size={12} />
+            </button>
+          </div>
+        ))}
+        <button type="button" className="btn btn--outline gradient-editor__add" onClick={addStop}>
+          <Svg d={UI_ICONS.plus} size={12} />
+          Add stop
+        </button>
+      </div>
+    </div>
   );
 }
 

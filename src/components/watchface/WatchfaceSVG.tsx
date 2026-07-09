@@ -1,6 +1,8 @@
 import { useId } from 'react';
 import type { Device, LiveData, WatchElement } from '@/types/watchface';
+import { decodeGradient, isGradientValue } from '@/lib/gradient';
 import { ElementNode } from './renderers';
+import { GradientDef } from './gradientDefs';
 
 interface Props {
   device: Device;
@@ -47,6 +49,8 @@ export function WatchfaceSVG({
 }: Props) {
   const rawId = useId();
   const clipId = `wfclip-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const bgId = `wfbg-${rawId.replace(/[^a-zA-Z0-9]/g, '')}`;
+  const bgGradient = isGradientValue(background) ? decodeGradient(background) : null;
   return (
     <svg
       viewBox={`0 0 ${device.width} ${device.height}`}
@@ -56,9 +60,14 @@ export function WatchfaceSVG({
     >
       <defs>
         <clipPath id={clipId}>{deviceShapePath(device)}</clipPath>
+        {bgGradient && <GradientDef id={bgId} spec={bgGradient} />}
       </defs>
       <g clipPath={`url(#${clipId})`}>
-        <rect width={device.width} height={device.height} fill={background} />
+        <rect
+          width={device.width}
+          height={device.height}
+          fill={bgGradient ? `url(#${bgId})` : background}
+        />
         {elements.map((el) => (
           <ElementNode key={el.id} el={el} data={data} staticOnly={staticOnly} allElements={elements} />
         ))}

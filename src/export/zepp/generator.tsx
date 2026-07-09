@@ -17,6 +17,8 @@ import { DEFAULT_LANGUAGE, MONTH_NAMES, WEEKDAY_NAMES } from '@/lib/i18n';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { ElementRenderer, FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import { ShadowDefs, shadowFilterMargin } from '@/components/watchface/shadows';
+import { resolveElementGradients } from '@/components/watchface/gradientDefs';
+import { decodeGradient, isGradientValue, gradientFallbackColor } from '@/lib/gradient';
 import { dataUrlToBytes, renderNodeToPng, renderGlyphToPng } from './rasterize';
 import { RUNTIME_TEMPLATE } from './runtime';
 
@@ -76,7 +78,11 @@ interface TextSpec {
 
 /** '#rrggbb' / '#rgb' / 'rgb(a)(...)' → 0xRRGGBB (alpha dropped) */
 function cssToZeppColor(css: string): number {
-  const hex = css.trim();
+  let hex = css.trim();
+  if (isGradientValue(hex)) {
+    const spec = decodeGradient(hex);
+    if (spec) hex = gradientFallbackColor(spec);
+  }
   if (hex.startsWith('#')) {
     const h = hex.slice(1);
     if (h.length === 3) {
@@ -294,6 +300,26 @@ export async function generateZeppProject(
     }
   }
 
+  /* -------------------- gradient export-limitation warnings -------------- */
+  // Same underlying constraint as shadows/flip above: only baked pixels can
+  // show a gradient. Native TEXT/FILL_RECT/ARC_PROGRESS widgets only accept
+  // a solid color, so a live element's gradient falls back to its first stop.
+  for (const el of [...project.normal, ...project.aod]) {
+    const hasGradient = Object.values(el).some(
+      (v) => typeof v === 'string' && isGradientValue(v),
+    );
+    if (!hasGradient) continue;
+    if (hasPartialShadowSupport(el)) {
+      warnings.push(
+        `"${el.name}" uses a gradient, but only its static chrome (track/ring/label) can show it — Zepp OS renders its live-updating fill/value as a native widget with solid color only.`,
+      );
+    } else if (!supportsShadow(el)) {
+      warnings.push(
+        `"${el.name}" uses a gradient, but it's a fully live Zepp OS text widget with no image behind it — the device shows a solid fallback color instead.`,
+      );
+    }
+  }
+
   /* ------------------------------- preview ------------------------------ */
   step('Rendering preview icon');
   files[`${assetsDir}/icon.png`] = await renderNodeToPng(
@@ -351,6 +377,7 @@ export async function generateZeppProject(
     step(`Rendering ${source} rotator`);
     const flip =
       el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
+    const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
     const png = await renderNodeToPng(
       <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
         <g
@@ -358,12 +385,13 @@ export async function generateZeppProject(
           opacity={el.opacity}
           filter={el.shadows?.length ? 'url(#rot-shadow)' : undefined}
         >
-          {el.shadows?.length ? (
+          {(el.shadows?.length || gradientDefs.length > 0) && (
             <defs>
-              <ShadowDefs id="rot-shadow" shadows={el.shadows} />
+              {el.shadows?.length ? <ShadowDefs id="rot-shadow" shadows={el.shadows} /> : null}
+              {gradientDefs}
             </defs>
-          ) : null}
-          <ElementRenderer el={el} data={previewData} />
+          )}
+          <ElementRenderer el={resolvedEl} data={previewData} />
         </g>
       </svg>,
       w,
@@ -411,6 +439,7 @@ export async function generateZeppProject(
     const h = Math.round(el.height) + margin * 2;
     const flip =
       el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
+    const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
     for (const cond of WEATHER_CONDITIONS) {
       files[`${assetsDir}/${dir}/${cond.value}.png`] = await renderNodeToPng(
         <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
@@ -419,13 +448,14 @@ export async function generateZeppProject(
             opacity={el.opacity}
             filter={el.shadows?.length ? 'url(#weather-shadow)' : undefined}
           >
-            {el.shadows?.length ? (
+            {(el.shadows?.length || gradientDefs.length > 0) && (
               <defs>
-                <ShadowDefs id="weather-shadow" shadows={el.shadows} />
+                {el.shadows?.length ? <ShadowDefs id="weather-shadow" shadows={el.shadows} /> : null}
+                {gradientDefs}
               </defs>
-            ) : null}
+            )}
             <ElementRenderer
-              el={{ ...el, condition: cond.value as never }}
+              el={{ ...resolvedEl, condition: cond.value as never }}
               data={previewData}
             />
           </g>

@@ -28,6 +28,7 @@ import {
 import { formatTime, handAngle, rotationSourceAngle, sourceValue } from '@/lib/time';
 import { DEFAULT_LANGUAGE, WEEKDAY_NAMES } from '@/lib/i18n';
 import { ShadowDefs, useShadowFilterId } from './shadows';
+import { useResolvedElement } from './gradientDefs';
 
 /** Ratio between rendered font size and element box height for text elements */
 export const FONT_HEIGHT_RATIO = 0.78;
@@ -699,6 +700,7 @@ export function ElementNode({
   // Filter + rotation share this <g>, so a rotated element's shadow rotates
   // with it — same as CSS `filter: drop-shadow` under a `transform`.
   const filterId = useShadowFilterId(el.shadows);
+  const { el: resolvedEl, defs: gradientDefs } = useResolvedElement(el);
   // Flip is applied last (innermost) so it mirrors the element's own content
   // around its own center, independent of rotation/pivot — matches "flip the
   // artwork", not "flip the pivot".
@@ -710,12 +712,13 @@ export function ElementNode({
       opacity={el.opacity}
       filter={filterId ? `url(#${filterId})` : undefined}
     >
-      {filterId && (
+      {(filterId || gradientDefs.length > 0) && (
         <defs>
-          <ShadowDefs id={filterId} shadows={el.shadows!} />
+          {filterId && <ShadowDefs id={filterId} shadows={el.shadows!} />}
+          {gradientDefs}
         </defs>
       )}
-      <ElementRenderer el={el} data={data} staticOnly={staticOnly} />
+      <ElementRenderer el={resolvedEl} data={data} staticOnly={staticOnly} />
     </g>
   );
 }
