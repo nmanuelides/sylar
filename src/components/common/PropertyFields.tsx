@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ensureFontLoaded, FONT_CATEGORIES, FONTS } from '@/data/fonts';
 import { useEditor } from '@/store/editorStore';
 import { isValidColor, useColorHistory } from '@/store/colorHistoryStore';
@@ -10,6 +10,43 @@ interface CommonProps {
   label: string;
   /** Called once when the user starts editing — used to push an undo snapshot */
   onStart?: () => void;
+}
+
+/**
+ * Lets a focused number input be adjusted by scrolling over it, without also
+ * scrolling the page/panel underneath. Only engages while the input is
+ * focused (an unfocused input lets the wheel event scroll the panel as
+ * normal) — React's synthetic onWheel can't reliably preventDefault (it's
+ * attached passively), so this wires a real DOM listener instead.
+ */
+function useWheelAdjust(
+  ref: RefObject<HTMLInputElement>,
+  opts: {
+    value: number;
+    min: number;
+    max: number;
+    step: number;
+    onChange: (v: number) => void;
+    onStart?: () => void;
+  },
+): void {
+  const latest = useRef(opts);
+  latest.current = opts;
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const handler = (e: WheelEvent) => {
+      if (document.activeElement !== el) return;
+      e.preventDefault();
+      const { value, min, max, step, onChange, onStart } = latest.current;
+      onStart?.();
+      const delta = e.deltaY < 0 ? step : -step;
+      const next = Math.min(max, Math.max(min, value + delta));
+      if (next !== value) onChange(next);
+    };
+    el.addEventListener('wheel', handler, { passive: false });
+    return () => el.removeEventListener('wheel', handler);
+  }, [ref]);
 }
 
 export function FieldRow({ label, children }: { label: string; children: ReactNode }) {
@@ -60,10 +97,13 @@ export function NumberField({
     if (clamped !== value) onChange(clamped);
     setDraft(null);
   };
+  const inputRef = useRef<HTMLInputElement>(null);
+  useWheelAdjust(inputRef, { value, min, max, step, onChange, onStart });
   return (
     <FieldRow label={label}>
       <div className="number-field">
         <input
+          ref={inputRef}
           type="number"
           value={shown}
           min={min === -Infinity ? undefined : min}
@@ -124,10 +164,20 @@ export function SliderField({
     if (clamped !== value) onChange(clamped);
     setDraft(null);
   };
+  const inputRef = useRef<HTMLInputElement>(null);
+  useWheelAdjust(inputRef, {
+    value: value * displayScale,
+    min: min * displayScale,
+    max: max * displayScale,
+    step: dispStep,
+    onChange: (v) => onChange(v / displayScale),
+    onStart,
+  });
   return (
     <FieldRow label={label}>
       <div className="slider-field">
         <input
+          ref={inputRef}
           className="slider-field__num"
           type="number"
           value={shown}

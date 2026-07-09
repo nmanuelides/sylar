@@ -19,6 +19,7 @@ const CATEGORIES: { id: LibraryCategory | 'all'; label: string }[] = [
   { id: 'text', label: 'Text' },
   { id: 'bars', label: 'Bars' },
   { id: 'marks', label: 'Marks' },
+  { id: 'shapes', label: 'Shapes' },
   { id: 'icons', label: 'Icons' },
 ];
 
@@ -28,6 +29,7 @@ const CATEGORY_TITLES: Record<LibraryCategory, string> = {
   text: 'Text & Numbers',
   bars: 'Progress Bars',
   marks: 'Tick Marks',
+  shapes: 'Shapes',
   icons: 'Icons',
 };
 

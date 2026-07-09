@@ -125,6 +125,47 @@ export function offsetAlongNormal(p: BoundaryPoint, dist: number): { x: number; 
   return { x: p.x + dist * Math.cos(a), y: p.y + dist * Math.sin(a) };
 }
 
+/**
+ * SVG path for a regular N-gon (first vertex at the top, clockwise) inscribed
+ * in a width×height box centered at the origin, with each corner rounded by
+ * `cornerRadius` (clamped per-vertex to half its shortest adjacent edge so
+ * radii can't overlap on small/high-radius shapes).
+ */
+export function roundedPolygonPath(
+  sides: number,
+  width: number,
+  height: number,
+  cornerRadius: number,
+): string {
+  const n = Math.max(3, Math.round(sides));
+  const rx = width / 2;
+  const ry = height / 2;
+  const pts = Array.from({ length: n }, (_, i) => {
+    const u = polar(0, 0, 1, (i * 360) / n);
+    return { x: u.x * rx, y: u.y * ry };
+  });
+  if (cornerRadius <= 0) {
+    return `M ${pts.map((p) => `${p.x} ${p.y}`).join(' L ')} Z`;
+  }
+  const segments: string[] = [];
+  for (let i = 0; i < n; i++) {
+    const prev = pts[(i - 1 + n) % n];
+    const curr = pts[i];
+    const next = pts[(i + 1) % n];
+    const toPrev = { x: prev.x - curr.x, y: prev.y - curr.y };
+    const toNext = { x: next.x - curr.x, y: next.y - curr.y };
+    const lenPrev = Math.hypot(toPrev.x, toPrev.y);
+    const lenNext = Math.hypot(toNext.x, toNext.y);
+    const r = Math.min(cornerRadius, lenPrev / 2, lenNext / 2);
+    const start = { x: curr.x + (toPrev.x / lenPrev) * r, y: curr.y + (toPrev.y / lenPrev) * r };
+    const end = { x: curr.x + (toNext.x / lenNext) * r, y: curr.y + (toNext.y / lenNext) * r };
+    segments.push(i === 0 ? `M ${start.x} ${start.y}` : `L ${start.x} ${start.y}`);
+    segments.push(`Q ${curr.x} ${curr.y} ${end.x} ${end.y}`);
+  }
+  segments.push('Z');
+  return segments.join(' ');
+}
+
 /** SVG arc path from startAngle to endAngle (deg, clockwise from 12 o'clock). */
 export function describeArc(
   cx: number,

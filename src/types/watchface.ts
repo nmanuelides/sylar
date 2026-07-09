@@ -246,6 +246,8 @@ export interface TickMarksElement extends ElementBase {
   showTicks?: boolean;
   showNumbers: boolean;
   fontFamily: string;
+  /** Font weight (400 regular, 700 bold, 900 black, etc. — depends on the font). Default 600. */
+  numberWeight?: number;
   numberColor: string;
   /** Multiplier applied to the label size (default 1) */
   numberScale?: number;
@@ -269,6 +271,21 @@ export interface TickMarksElement extends ElementBase {
   curveLabels?: boolean;
 }
 
+export type ShapeKind = 'circle' | 'rectangle' | 'polygon';
+
+export interface ShapeElement extends ElementBase {
+  type: 'shape';
+  shapeKind: ShapeKind;
+  /** Polygon only: number of sides, 3 (triangle) to 12 */
+  sides?: number;
+  /** Rectangle: corner radius. Polygon: vertex rounding. Ignored for circle. */
+  cornerRadius?: number;
+  fill: string;
+  strokeColor?: string;
+  /** 0 or unset = no stroke */
+  strokeWidth?: number;
+}
+
 export type ImageFit = 'contain' | 'cover' | 'stretch';
 
 export interface ImageElement extends ElementBase {
@@ -288,7 +305,8 @@ export type WatchElement =
   | WeatherIconElement
   | ProgressBarElement
   | TickMarksElement
-  | ImageElement;
+  | ImageElement
+  | ShapeElement;
 
 export type ElementType = WatchElement['type'];
 

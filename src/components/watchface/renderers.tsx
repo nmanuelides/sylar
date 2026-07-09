@@ -7,6 +7,7 @@ import type {
   LiveData,
   NumberElement,
   ProgressBarElement,
+  ShapeElement,
   TextElement,
   TickMarksElement,
   WatchElement,
@@ -21,6 +22,7 @@ import {
   offsetAlongNormal,
   polar,
   resolvePivot,
+  roundedPolygonPath,
   roundedRectBoundaryPoint,
 } from '@/lib/geometry';
 import { formatTime, handAngle, rotationSourceAngle, sourceValue } from '@/lib/time';
@@ -589,7 +591,7 @@ function TickMarks({ el }: { el: TickMarksElement }) {
           dominantBaseline="central"
           fill={el.numberColor}
           fontFamily={el.fontFamily}
-          fontWeight={600}
+          fontWeight={el.numberWeight ?? 600}
           fontSize={fontSize}
           transform={el.curveLabels ? `rotate(${rotation} ${p.x} ${p.y})` : undefined}
         >
@@ -604,6 +606,30 @@ function TickMarks({ el }: { el: TickMarksElement }) {
       {numbers}
     </g>
   );
+}
+
+/* ------------------------------------------------------------------ */
+/* Shape                                                               */
+/* ------------------------------------------------------------------ */
+
+function Shape({ el }: { el: ShapeElement }) {
+  const hasStroke = !!el.strokeColor && (el.strokeWidth ?? 0) > 0;
+  const common = {
+    fill: el.fill,
+    stroke: hasStroke ? el.strokeColor : undefined,
+    strokeWidth: hasStroke ? el.strokeWidth : undefined,
+  };
+  if (el.shapeKind === 'circle') {
+    return <ellipse cx={0} cy={0} rx={el.width / 2} ry={el.height / 2} {...common} />;
+  }
+  if (el.shapeKind === 'rectangle') {
+    const r = clamp(el.cornerRadius ?? 0, 0, Math.min(el.width, el.height) / 2);
+    return (
+      <rect x={-el.width / 2} y={-el.height / 2} width={el.width} height={el.height} rx={r} {...common} />
+    );
+  }
+  const sides = clamp(Math.round(el.sides ?? 3), 3, 12);
+  return <path d={roundedPolygonPath(sides, el.width, el.height, Math.max(0, el.cornerRadius ?? 0))} {...common} />;
 }
 
 /* ------------------------------------------------------------------ */
@@ -641,6 +667,8 @@ export function ElementRenderer({
       return <TickMarks el={el} />;
     case 'image':
       return <ImageEl el={el} />;
+    case 'shape':
+      return <Shape el={el} />;
   }
 }
 

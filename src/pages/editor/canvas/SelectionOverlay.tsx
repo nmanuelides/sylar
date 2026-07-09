@@ -26,7 +26,8 @@ export function SelectionOverlay() {
     const { id, x, y, width, height, rotation, type } = single;
     const proportional =
       PROPORTIONAL_TYPES.has(type) ||
-      (type === 'progressBar' && single.variant === 'circular');
+      (type === 'progressBar' && single.variant === 'circular') ||
+      (type === 'shape' && single.shapeKind === 'circle');
     const sx = dir.includes('e') ? 1 : dir.includes('w') ? -1 : 0;
     const sy = dir.includes('s') ? 1 : dir.includes('n') ? -1 : 0;
     useEditor.getState().commit();

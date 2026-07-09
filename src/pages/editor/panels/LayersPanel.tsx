@@ -15,6 +15,7 @@ const TYPE_GLYPHS: Record<ElementType, string> = {
   progressBar: ICONS.bolt,
   tickMarks: ICONS.compass,
   image: ICONS.cloud,
+  shape: ICONS.square,
 };
 
 function LayerRow({ el }: { el: WatchElement }) {

@@ -16,7 +16,8 @@ export type LibraryCategory =
   | 'text'
   | 'icons'
   | 'bars'
-  | 'marks';
+  | 'marks'
+  | 'shapes';
 
 export interface LibraryItem {
   id: string;
@@ -148,12 +149,12 @@ export const LIBRARY: LibraryItem[] = [
   },
   {
     id: 'number',
-    label: 'Number',
+    label: 'Data',
     category: 'text',
     create: (x, y) => ({
       id: uid(),
       type: 'number',
-      name: 'Number',
+      name: 'Data',
       x,
       y,
       width: 140,
@@ -369,6 +370,89 @@ export const LIBRARY: LibraryItem[] = [
       curveLabels: true,
       fontFamily: DEFAULT_FONT,
       numberColor: WHITE,
+    }),
+  },
+  {
+    id: 'shape-circle',
+    label: 'Circle',
+    category: 'shapes',
+    create: (x, y) => ({
+      id: uid(),
+      type: 'shape',
+      shapeKind: 'circle',
+      name: 'Circle',
+      x,
+      y,
+      width: 160,
+      height: 160,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      fill: ACCENT,
+    }),
+  },
+  {
+    id: 'shape-rectangle',
+    label: 'Rectangle',
+    category: 'shapes',
+    create: (x, y) => ({
+      id: uid(),
+      type: 'shape',
+      shapeKind: 'rectangle',
+      name: 'Rectangle',
+      x,
+      y,
+      width: 200,
+      height: 120,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      fill: ACCENT,
+      cornerRadius: 16,
+    }),
+  },
+  {
+    id: 'shape-triangle',
+    label: 'Triangle',
+    category: 'shapes',
+    create: (x, y) => ({
+      id: uid(),
+      type: 'shape',
+      shapeKind: 'polygon',
+      name: 'Triangle',
+      x,
+      y,
+      width: 160,
+      height: 160,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      sides: 3,
+      fill: ACCENT,
+    }),
+  },
+  {
+    id: 'shape-polygon',
+    label: 'Polygon',
+    category: 'shapes',
+    create: (x, y) => ({
+      id: uid(),
+      type: 'shape',
+      shapeKind: 'polygon',
+      name: 'Polygon',
+      x,
+      y,
+      width: 160,
+      height: 160,
+      rotation: 0,
+      opacity: 1,
+      visible: true,
+      locked: false,
+      sides: 6,
+      fill: ACCENT,
     }),
   },
   ...STARTER_ICONS.map((ic) => ({

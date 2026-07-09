@@ -135,6 +135,9 @@ function ElementProperties({ el }: { el: WatchElement }) {
   const { patch, commitPatch, commit } = useElementPatch(el.id);
   const [iconPickerOpen, setIconPickerOpen] = useState(false);
   const elements = useEditor(selectCurrentElements);
+  // Matches the tick-marks renderer's `r * 0.16` base font size (renderers.tsx)
+  // so the "Text size" field can show/set the label's actual on-canvas px.
+  const labelBaseSize = (Math.min(el.width, el.height) / 2) * 0.16;
 
   return (
     <>
@@ -453,9 +456,9 @@ function ElementProperties({ el }: { el: WatchElement }) {
       )}
 
       {el.type === 'number' && (
-        <FieldGroup title="Number">
+        <FieldGroup title="Data">
           <SelectField
-            label="Data"
+            label="Source"
             value={el.source}
             options={DATA_SOURCES}
             onChange={(v) => commitPatch({ source: v })}
@@ -847,21 +850,32 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 checked={el.curveLabels ?? false}
                 onChange={(v) => commitPatch({ curveLabels: v })}
               />
-              <SliderField
+              <NumberField
                 label="Text size"
-                value={el.numberScale ?? 1}
-                min={0.1}
-                max={2.5}
-                step={0.01}
+                value={Math.round(labelBaseSize * (el.numberScale ?? 1))}
+                min={2}
+                max={400}
+                suffix="px"
                 onStart={commit}
-                onChange={(v) => patch({ numberScale: v })}
-                displayScale={100}
-                suffix="%"
+                onChange={(v) => patch({ numberScale: v / labelBaseSize })}
               />
               <FontField
                 label="Font"
                 value={el.fontFamily}
-                onChange={(v) => commitPatch({ fontFamily: v })}
+                onChange={(family) => {
+                  const patchObj: Record<string, unknown> = { fontFamily: family };
+                  const available = weightsFor(family).map((o) => o.value);
+                  if (!available.includes(el.numberWeight ?? 600)) {
+                    patchObj.numberWeight = nearestWeight(family, el.numberWeight ?? 600);
+                  }
+                  commitPatch(patchObj);
+                }}
+              />
+              <SelectField
+                label="Style"
+                value={el.numberWeight ?? 600}
+                options={weightsFor(el.fontFamily)}
+                onChange={(v) => commitPatch({ numberWeight: v })}
               />
               <ColorField
                 label="Text color"
@@ -893,6 +907,67 @@ function ElementProperties({ el }: { el: WatchElement }) {
               (e.g. 85% for a short tail), then use the center-align buttons below to snap the
               pivot to the dial center.
             </p>
+          )}
+        </FieldGroup>
+      )}
+
+      {el.type === 'shape' && (
+        <FieldGroup title="Shape">
+          <SegmentField
+            label="Kind"
+            value={el.shapeKind}
+            options={[
+              { value: 'circle', label: 'Circle' },
+              { value: 'rectangle', label: 'Rectangle' },
+              { value: 'polygon', label: 'Polygon' },
+            ]}
+            onChange={(v) => commitPatch({ shapeKind: v })}
+          />
+          {el.shapeKind === 'polygon' && (
+            <NumberField
+              label="Sides"
+              value={el.sides ?? 3}
+              min={3}
+              max={12}
+              onStart={commit}
+              onChange={(v) => patch({ sides: Math.round(v) })}
+            />
+          )}
+          {el.shapeKind !== 'circle' && (
+            <SliderField
+              label="Corner radius"
+              value={el.cornerRadius ?? 0}
+              min={0}
+              max={Math.max(1, Math.min(el.width, el.height) / 2)}
+              onStart={commit}
+              onChange={(v) => patch({ cornerRadius: v })}
+              suffix="px"
+            />
+          )}
+          <ColorField
+            label="Fill"
+            value={el.fill}
+            onStart={commit}
+            onChange={(v) => patch({ fill: v })}
+            bindingKey={elementBindingKey(el.id, 'fill')}
+          />
+          <NumberField
+            label="Stroke width"
+            value={el.strokeWidth ?? 0}
+            min={0}
+            max={40}
+            suffix="px"
+            onStart={commit}
+            onChange={(v) => patch({ strokeWidth: v })}
+          />
+          {(el.strokeWidth ?? 0) > 0 && (
+            <ColorField
+              label="Stroke color"
+              value={el.strokeColor ?? '#000000'}
+              onStart={commit}
+              onChange={(v) => patch({ strokeColor: v })}
+              bindingKey={elementBindingKey(el.id, 'strokeColor')}
+            />
           )}
         </FieldGroup>
       )}
