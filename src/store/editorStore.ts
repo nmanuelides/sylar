@@ -103,6 +103,7 @@ interface EditorStore {
   future: Snapshot[];
   previewOpen: boolean;
   exportOpen: boolean;
+  mockDataOpen: boolean;
   leftPanelOpen: boolean;
   rightPanelOpen: boolean;
 
@@ -120,6 +121,7 @@ interface EditorStore {
   setDirty: (dirty: boolean) => void;
   setPreviewOpen: (open: boolean) => void;
   setExportOpen: (open: boolean) => void;
+  setMockDataOpen: (open: boolean) => void;
   setLeftPanelOpen: (open: boolean) => void;
   setRightPanelOpen: (open: boolean) => void;
 
@@ -190,6 +192,7 @@ export const useEditor = create<EditorStore>((set, get) => ({
   future: [],
   previewOpen: false,
   exportOpen: false,
+  mockDataOpen: false,
   leftPanelOpen: true,
   rightPanelOpen: true,
 
@@ -233,6 +236,7 @@ export const useEditor = create<EditorStore>((set, get) => ({
   setDirty: (dirty) => set({ dirty }),
   setPreviewOpen: (previewOpen) => set({ previewOpen }),
   setExportOpen: (exportOpen) => set({ exportOpen }),
+  setMockDataOpen: (mockDataOpen) => set({ mockDataOpen }),
   setLeftPanelOpen: (leftPanelOpen) => set({ leftPanelOpen }),
   setRightPanelOpen: (rightPanelOpen) => set({ rightPanelOpen }),
 

@@ -18,6 +18,7 @@ import { FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import {
   ColorField,
   FieldGroup,
+  FieldRow,
   FontField,
   NumberField,
   SegmentField,
@@ -39,13 +40,16 @@ const ALIGN_BUTTONS: { kind: AlignKind; icon: string; title: string }[] = [
   { kind: 'bottom', icon: UI_ICONS.alignB, title: 'Align bottom' },
 ];
 
+type ElementPatch =
+  | Record<string, unknown>
+  | ((el: WatchElement) => Record<string, unknown>);
+
 function useElementPatch(id: string) {
   const updateElements = useEditor((s) => s.updateElements);
   const commit = useEditor((s) => s.commit);
   return {
-    patch: (p: Record<string, unknown>) =>
-      updateElements([id], p as Partial<WatchElement>),
-    commitPatch: (p: Record<string, unknown>) => {
+    patch: (p: ElementPatch) => updateElements([id], p as Partial<WatchElement>),
+    commitPatch: (p: ElementPatch) => {
       commit();
       updateElements([id], p as Partial<WatchElement>);
     },
@@ -160,6 +164,26 @@ function ElementProperties({ el }: { el: WatchElement }) {
           onChange={(v) => patch({ rotation: v })}
           suffix="°"
         />
+        <FieldRow label="Flip">
+          <div className="props__flip">
+            <button
+              type="button"
+              className={`icon-btn ${el.flipX ? 'is-active' : ''}`}
+              title="Flip horizontal"
+              onClick={() => commitPatch((e) => ({ flipX: !e.flipX }))}
+            >
+              <Svg d={UI_ICONS.flipH} size={15} />
+            </button>
+            <button
+              type="button"
+              className={`icon-btn ${el.flipY ? 'is-active' : ''}`}
+              title="Flip vertical"
+              onClick={() => commitPatch((e) => ({ flipY: !e.flipY }))}
+            >
+              <Svg d={UI_ICONS.flipV} size={15} />
+            </button>
+          </div>
+        </FieldRow>
         {(el.type === 'hand' || !!el.rotateWith) && (
           <>
             <SliderField
@@ -777,32 +801,51 @@ function ElementProperties({ el }: { el: WatchElement }) {
             </>
           )}
           <SwitchField
-            label="Numerals"
+            label="Labels"
             checked={el.showNumbers}
             onChange={(v) => commitPatch({ showNumbers: v })}
           />
           {el.showNumbers && (
             <>
               <NumberField
-                label="Numerals"
+                label="Count"
                 value={el.numberCount ?? 12}
                 min={1}
                 max={60}
                 onStart={commit}
                 onChange={(v) => patch({ numberCount: Math.round(v) })}
               />
-              <NumberField
-                label="Step"
-                value={el.numberStep ?? 1}
-                min={1}
-                max={1000}
-                onStart={commit}
-                onChange={(v) => patch({ numberStep: Math.round(v) })}
-              />
+              <FieldRow label="Custom text">
+                <textarea
+                  className="props__textarea"
+                  rows={4}
+                  placeholder={'Leave blank for 1, 2, 3…\nOr enter one label per line,\ne.g. Mon / Tue / Wed…'}
+                  value={(el.labels ?? []).join('\n')}
+                  onFocus={commit}
+                  onChange={(e) => patch({ labels: e.target.value.split('\n') })}
+                />
+              </FieldRow>
+              {!el.labels?.some((s) => s.length > 0) && (
+                <>
+                  <NumberField
+                    label="Step"
+                    value={el.numberStep ?? 1}
+                    min={1}
+                    max={1000}
+                    onStart={commit}
+                    onChange={(v) => patch({ numberStep: Math.round(v) })}
+                  />
+                  <SwitchField
+                    label="Zero at top"
+                    checked={el.zeroAtTop ?? false}
+                    onChange={(v) => commitPatch({ zeroAtTop: v })}
+                  />
+                </>
+              )}
               <SwitchField
-                label="Zero at top"
-                checked={el.zeroAtTop ?? false}
-                onChange={(v) => commitPatch({ zeroAtTop: v })}
+                label="Curve around ring"
+                checked={el.curveLabels ?? false}
+                onChange={(v) => commitPatch({ curveLabels: v })}
               />
               <SliderField
                 label="Text size"
@@ -821,7 +864,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onChange={(v) => commitPatch({ fontFamily: v })}
               />
               <ColorField
-                label="Number color"
+                label="Text color"
                 value={el.numberColor}
                 onStart={commit}
                 onChange={(v) => patch({ numberColor: v })}

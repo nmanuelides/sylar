@@ -44,3 +44,33 @@ export function startLiveData(): void {
     }));
   }, 1000);
 }
+
+/**
+ * Lets the user pin every data-source value to a fixed test scenario
+ * (e.g. "battery at 5%, Sunday, 11:59 PM") instead of the live/random values
+ * above. When enabled, `values` fully replaces the live data everywhere the
+ * canvas reads it.
+ */
+interface MockDataStore {
+  enabled: boolean;
+  values: LiveData;
+  setEnabled: (enabled: boolean) => void;
+  setValue: <K extends keyof LiveData>(key: K, value: LiveData[K]) => void;
+  reset: () => void;
+}
+
+export const useMockData = create<MockDataStore>((set) => ({
+  enabled: false,
+  values: useLiveData.getState(),
+  setEnabled: (enabled) => set({ enabled, values: useLiveData.getState() }),
+  setValue: (key, value) => set((s) => ({ values: { ...s.values, [key]: value } })),
+  reset: () => set({ values: useLiveData.getState() }),
+}));
+
+/** What the canvas should actually render: the pinned mock scenario, or real live data. */
+export function useEffectiveLiveData(): LiveData {
+  const live = useLiveData();
+  const mockEnabled = useMockData((s) => s.enabled);
+  const mockValues = useMockData((s) => s.values);
+  return mockEnabled ? mockValues : live;
+}

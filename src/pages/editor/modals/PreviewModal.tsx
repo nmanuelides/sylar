@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { motion } from 'framer-motion';
 import { getDevice } from '@/data/devices';
 import { useEditor } from '@/store/editorStore';
-import { useLiveData } from '@/store/liveDataStore';
+import { useEffectiveLiveData } from '@/store/liveDataStore';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { Modal } from '@/components/common/Ui';
 import './modals.scss';
@@ -11,7 +11,7 @@ export function PreviewModal() {
   const open = useEditor((s) => s.previewOpen);
   const setOpen = useEditor((s) => s.setPreviewOpen);
   const project = useEditor((s) => s.project);
-  const liveData = useLiveData();
+  const liveData = useEffectiveLiveData();
   const data = { ...liveData, language: project.language };
   const [mode, setMode] = useState<'normal' | 'aod'>('normal');
   const device = getDevice(project.deviceId);

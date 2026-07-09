@@ -567,9 +567,19 @@ function TickMarks({ el }: { el: TickMarksElement }) {
             t,
           )
         : circleBoundaryPoint(Math.max(0, r - inset), t);
+    const labels = el.labels?.filter((s) => s.length > 0);
     for (let i = 0; i < count; i++) {
       const p = numberBoundaryAt(i / count);
-      const value = i === 0 ? (el.zeroAtTop ? 0 : count * step) : i * step;
+      const value =
+        labels && labels.length > 0
+          ? labels[i % labels.length]
+          : i === 0
+            ? (el.zeroAtTop ? 0 : count * step)
+            : i * step;
+      // Tangent to the ring at this point; flip 180° in the bottom half so
+      // labels stay upright/readable instead of rendering upside down.
+      let rotation = p.angle % 360;
+      if (rotation > 90 && rotation < 270) rotation -= 180;
       numbers.push(
         <text
           key={`n${i}`}
@@ -581,6 +591,7 @@ function TickMarks({ el }: { el: TickMarksElement }) {
           fontFamily={el.fontFamily}
           fontWeight={600}
           fontSize={fontSize}
+          transform={el.curveLabels ? `rotate(${rotation} ${p.x} ${p.y})` : undefined}
         >
           {value}
         </text>,
@@ -660,9 +671,14 @@ export function ElementNode({
   // Filter + rotation share this <g>, so a rotated element's shadow rotates
   // with it — same as CSS `filter: drop-shadow` under a `transform`.
   const filterId = useShadowFilterId(el.shadows);
+  // Flip is applied last (innermost) so it mirrors the element's own content
+  // around its own center, independent of rotation/pivot — matches "flip the
+  // artwork", not "flip the pivot".
+  const flip =
+    el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
   return (
     <g
-      transform={`translate(${el.x} ${el.y}) rotate(${rotation} ${pivot.x} ${pivot.y})`}
+      transform={`translate(${el.x} ${el.y}) rotate(${rotation} ${pivot.x} ${pivot.y})${flip}`}
       opacity={el.opacity}
       filter={filterId ? `url(#${filterId})` : undefined}
     >

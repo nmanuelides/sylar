@@ -89,6 +89,9 @@ export interface ElementBase {
   pivotY?: number;
   /** Element to pivot around instead of pivotX/pivotY, when set (uses the target's center) */
   pivotTargetId?: string;
+  /** Mirrors the element's own rendered content left-right/top-bottom, independent of rotation */
+  flipX?: boolean;
+  flipY?: boolean;
   /** Stacked drop-shadows, rendered back-to-front (array order) */
   shadows?: ShadowSpec[];
 }
@@ -239,19 +242,31 @@ export interface TickMarksElement extends ElementBase {
   layout?: 'circle' | 'rect';
   /** Corner rounding of the rectangular arrangement track (layout: 'rect' only) */
   pathCornerRadius?: number;
-  /** Draw the tick lines/dots (default true; the Numerals preset turns this off) */
+  /** Draw the tick lines/dots (default true; the Labels preset turns this off) */
   showTicks?: boolean;
   showNumbers: boolean;
   fontFamily: string;
   numberColor: string;
-  /** Multiplier applied to the numeral size (default 1) */
+  /** Multiplier applied to the label size (default 1) */
   numberScale?: number;
-  /** How many numerals ring the circle (default 12) */
+  /** How many labels ring the circle (default 12) */
   numberCount?: number;
-  /** Increment between adjacent numerals (default 1) */
+  /** Increment between adjacent numbers — ignored once `labels` is set */
   numberStep?: number;
-  /** Show 0 at the 12 o'clock position instead of the full value (count × step) */
+  /** Show 0 at the 12 o'clock position instead of the full value (count × step) — ignored once `labels` is set */
   zeroAtTop?: boolean;
+  /**
+   * Custom per-position text (e.g. day names) that replaces the generated
+   * numbers. Cycles with modulo if shorter than `numberCount`; falls back to
+   * the numeric sequence above when empty/unset.
+   */
+  labels?: string[];
+  /**
+   * Rotate each label to follow the ring's curve (tangent to the circle at
+   * its position) instead of staying upright. Bottom-half labels are flipped
+   * 180° so they stay readable instead of rendering upside down.
+   */
+  curveLabels?: boolean;
 }
 
 export type ImageFit = 'contain' | 'cover' | 'stretch';

@@ -70,6 +70,9 @@ export const UI_ICONS = {
     'M11.99 18.54l-7.37-5.73L3 14.07l9 7 9-7-1.63-1.27-7.38 5.74zM12 16l7.36-5.73L21 9l-9-7-9 7 1.63 1.27L12 16z',
   panelLeft: 'M3 3h18v18H3V3zm2 2v14h5V5H5zm7 0v14h7V5h-7z',
   panelRight: 'M3 3h18v18H3V3zm2 2v14h7V5H5zm9 0v14h5V5h-5z',
+  flipH: 'M8 8L2 12L8 16ZM16 8L22 12L16 16ZM11 2h2v20h-2z',
+  flipV: 'M8 8L12 2L16 8ZM8 16L12 22L16 16ZM2 11h20v2H2z',
+  tune: 'M3 17v2h6v-2H3zm0-12v2h10V5H3zm10 16v-2h8v-2h-8v-2h-2v6h2zM7 9v2H3v2h4v2h2V9H7zm14 4v-2H11v2h10zm-6-4h2V7h4V5h-4V3h-2v6z',
 } as const;
 
 /* --------------------------------- Switch -------------------------------- */

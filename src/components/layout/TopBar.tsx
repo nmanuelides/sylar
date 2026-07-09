@@ -3,6 +3,7 @@ import { NavLink, useLocation } from 'react-router-dom';
 import { motion } from 'framer-motion';
 import { toPng } from 'html-to-image';
 import { useEditor } from '@/store/editorStore';
+import { useMockData } from '@/store/liveDataStore';
 import { saveProject } from '@/services/projectService';
 import { supabaseConfigured } from '@/lib/supabase';
 import { toast } from '@/store/toastStore';
@@ -37,6 +38,8 @@ export function TopBar() {
   const redo = useEditor((s) => s.redo);
   const setPreviewOpen = useEditor((s) => s.setPreviewOpen);
   const setExportOpen = useEditor((s) => s.setExportOpen);
+  const setMockDataOpen = useEditor((s) => s.setMockDataOpen);
+  const mockEnabled = useMockData((s) => s.enabled);
   const setDirty = useEditor((s) => s.setDirty);
   const [saving, setSaving] = useState(false);
 
@@ -113,6 +116,13 @@ export function TopBar() {
             >
               {saving ? 'Saving…' : 'Save'}
               {dirty && <span className="topbar__dirty-dot" />}
+            </button>
+            <button
+              className={`icon-btn ${mockEnabled ? 'is-active' : ''}`}
+              onClick={() => setMockDataOpen(true)}
+              title="Mock data — test with custom battery, steps, weather, etc."
+            >
+              <Svg d={UI_ICONS.tune} />
             </button>
             <button className="btn btn--outline" onClick={() => setPreviewOpen(true)}>
               <Svg d={UI_ICONS.play} size={14} />

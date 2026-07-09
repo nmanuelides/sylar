@@ -275,6 +275,25 @@ export async function generateZeppProject(
     }
   }
 
+  /* ---------------------- flip export-limitation warnings ---------------- */
+  // Same underlying constraint as shadows above: only baked pixels can
+  // reflect a flip. Hands/rotators and baked live-weather icons are baked
+  // per-element (see renderRotatingElement / the weather-icon loop) and
+  // flip fully there; progress bars/complications only mirror their static
+  // chrome; fully-live text has no baked image to flip at all.
+  for (const el of [...project.normal, ...project.aod]) {
+    if (!el.flipX && !el.flipY) continue;
+    if (hasPartialShadowSupport(el)) {
+      warnings.push(
+        `"${el.name}" is flipped, but only its static chrome (track/ring/label) mirrors — Zepp OS renders its live-updating fill/value as a native widget with no flip support.`,
+      );
+    } else if (!supportsShadow(el)) {
+      warnings.push(
+        `"${el.name}" is flipped, but it's a fully live Zepp OS text widget with no image behind it — the flip has no effect on the device.`,
+      );
+    }
+  }
+
   /* ------------------------------- preview ------------------------------ */
   step('Rendering preview icon');
   files[`${assetsDir}/icon.png`] = await renderNodeToPng(
@@ -330,10 +349,12 @@ export async function generateZeppProject(
     const w = Math.max(2, Math.round(el.width)) + margin * 2;
     const h = Math.max(2, Math.round(el.height)) + margin * 2;
     step(`Rendering ${source} rotator`);
+    const flip =
+      el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
     const png = await renderNodeToPng(
       <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
         <g
-          transform={`translate(${w / 2} ${h / 2})`}
+          transform={`translate(${w / 2} ${h / 2})${flip}`}
           opacity={el.opacity}
           filter={el.shadows?.length ? 'url(#rot-shadow)' : undefined}
         >
@@ -388,11 +409,13 @@ export async function generateZeppProject(
     const margin = Math.ceil(shadowFilterMargin(el.shadows));
     const w = Math.round(el.width) + margin * 2;
     const h = Math.round(el.height) + margin * 2;
+    const flip =
+      el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
     for (const cond of WEATHER_CONDITIONS) {
       files[`${assetsDir}/${dir}/${cond.value}.png`] = await renderNodeToPng(
         <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
           <g
-            transform={`translate(${w / 2} ${h / 2})`}
+            transform={`translate(${w / 2} ${h / 2})${flip}`}
             opacity={el.opacity}
             filter={el.shadows?.length ? 'url(#weather-shadow)' : undefined}
           >

@@ -7,7 +7,7 @@ import {
   selectCurrentElements,
   useEditor,
 } from '@/store/editorStore';
-import { useLiveData } from '@/store/liveDataStore';
+import { useEffectiveLiveData } from '@/store/liveDataStore';
 import { ElementNode, elementTimeRotation } from '@/components/watchface/renderers';
 import { deviceShapePath } from '@/components/watchface/WatchfaceSVG';
 import { trackPointer } from '@/lib/drag';
@@ -32,7 +32,7 @@ export function WatchCanvas() {
   const showGrid = useEditor((s) => s.showGrid);
   const gridSize = useEditor((s) => s.gridSize);
   const selectedIds = useEditor((s) => s.selectedIds);
-  const liveData = useLiveData();
+  const liveData = useEffectiveLiveData();
   const data = { ...liveData, language: project.language };
   const device = getDevice(project.deviceId);
   const wrapRef = useRef<HTMLDivElement>(null);

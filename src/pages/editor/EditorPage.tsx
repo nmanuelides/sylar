@@ -13,6 +13,7 @@ import { RightPanel } from './panels/RightPanel';
 import { CanvasArea } from './canvas/CanvasArea';
 import { PreviewModal } from './modals/PreviewModal';
 import { ExportModal } from './modals/ExportModal';
+import { MockDataModal } from './modals/MockDataModal';
 import { useShortcuts } from './hooks/useShortcuts';
 import './editor.scss';
 
@@ -61,6 +62,7 @@ export function EditorPage() {
       <RightPanel />
       <PreviewModal />
       <ExportModal />
+      <MockDataModal />
       {/* Hidden render used for save thumbnails. The captured node must NOT carry
           the offscreen positioning itself — html-to-image clones its computed style. */}
       <div className="offscreen">
