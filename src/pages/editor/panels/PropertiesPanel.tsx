@@ -436,6 +436,20 @@ function ElementProperties({ el }: { el: WatchElement }) {
             options={DATA_SOURCES}
             onChange={(v) => commitPatch({ source: v })}
           />
+          {el.source === 'weather' && (
+            <>
+              <SwitchField
+                label="Live device temperature"
+                checked={el.nativeWeather ?? false}
+                onChange={(v) => commitPatch({ nativeWeather: v })}
+              />
+              <p className="props__note">
+                {el.nativeWeather
+                  ? "Renders as a native widget bound to the watch's own live current-temperature reading — more accurate than the approximation below, but the editor preview can't simulate it, so it'll keep showing the estimate here."
+                  : 'Zepp OS has no live "current temperature" sensor reading — this estimates it from a diurnal curve between the daily high and low. Enable above for the more accurate, device-native reading instead (support varies by watch model).'}
+              </p>
+            </>
+          )}
           <SwitchField label="Unit" checked={el.showUnit} onChange={(v) => commitPatch({ showUnit: v })} />
           <FontFields el={el} elementId={el.id} patch={patch} commitPatch={commitPatch} commit={commit} />
         </FieldGroup>

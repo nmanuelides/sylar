@@ -413,6 +413,17 @@ export async function generateZeppProject(
     // apart, since Zepp OS has no native multi-block fill widget.
     segments?: number; gap?: number;
   }[] = [];
+  // TEXT_IMG widgets, used only for the opt-in "live device temperature"
+  // path — bound natively to the OS's own current-weather data type, with
+  // no polling code needed (see runtime.ts). fontArray is a digit-sprite
+  // set (0-9) baked from the element's own font/color, since TEXT_IMG has
+  // no system-font text mode of its own.
+  const textImgs: {
+    x: number; y: number; w: number; h: number; hSpace: number;
+    fontArray: string[]; negImage: string; unitEn: string; imperialUnitEn: string;
+    aod: boolean;
+  }[] = [];
+  let textImgIndex = 0;
 
   // Google Fonts aren't TTF files we already have — the build server fetches
   // the real font binary from Google before compiling (see server/index.js).
@@ -429,7 +440,7 @@ export async function generateZeppProject(
     return need.path;
   };
 
-  const collect = (elements: WatchElement[], aod: boolean) => {
+  const collect = async (elements: WatchElement[], aod: boolean) => {
     for (const el of elements) {
       if (!el.visible) continue;
       if (el.type === 'digitalTime') {
@@ -451,6 +462,56 @@ export async function generateZeppProject(
         if (el.rotation !== 0) {
           warnings.push(`"${el.name}" rotation is ignored — Zepp OS text widgets can't rotate.`);
         }
+      } else if (el.type === 'number' && el.source === 'weather' && el.nativeWeather) {
+        onProgress('Rendering temperature digits');
+        // Per-glyph sprite box (one digit character), not the overall widget
+        // box below — TEXT_IMG lays glyphs out itself from these.
+        const glyphH = Math.round(el.height);
+        const glyphW = Math.round(el.height * 0.62);
+        const fontSize = Math.round(glyphH * FONT_HEIGHT_RATIO);
+        const idx = textImgIndex++;
+        const renderGlyph = (ch: string) =>
+          renderNodeToPng(
+            <svg viewBox={`0 0 ${glyphW} ${glyphH}`} width={glyphW} height={glyphH} xmlns="http://www.w3.org/2000/svg">
+              <text
+                x={glyphW / 2}
+                y={glyphH / 2}
+                textAnchor="middle"
+                dominantBaseline="central"
+                fontFamily={el.fontFamily}
+                fontWeight={el.fontWeight}
+                fontSize={fontSize}
+                fill={el.color}
+              >
+                {ch}
+              </text>
+            </svg>,
+            glyphW,
+            glyphH,
+          );
+        const fontArray: string[] = [];
+        for (const digit of '0123456789') {
+          const name = `fontimg/${idx}/${digit}.png`;
+          files[`${assetsDir}/${name}`] = await renderGlyph(digit);
+          fontArray.push(name);
+        }
+        const negName = `fontimg/${idx}/neg.png`;
+        files[`${assetsDir}/${negName}`] = await renderGlyph('-');
+        textImgs.push({
+          x: Math.round(el.x - el.width / 2),
+          y: Math.round(el.y - el.height / 2),
+          w: Math.round(el.width),
+          h: Math.round(el.height),
+          hSpace: Math.round(glyphW * 0.06),
+          fontArray,
+          negImage: negName,
+          unitEn: '°C',
+          imperialUnitEn: '°F',
+          aod,
+        });
+        warnings.push(
+          `"${el.name}" uses the device's native live-temperature widget — the editor preview can't simulate it (it'll keep showing the high/low estimate here), and actual support may vary by watch model.`,
+        );
       } else if (el.type === 'number') {
         texts.push({
           kind: 'source',
@@ -608,8 +669,8 @@ export async function generateZeppProject(
     }
   };
 
-  collect(project.normal, false);
-  if (hasAod) collect(project.aod, true);
+  await collect(project.normal, false);
+  if (hasAod) await collect(project.aod, true);
 
   /* ------------------------------ code files ---------------------------- */
   onProgress('Generating code');
@@ -627,6 +688,7 @@ export async function generateZeppProject(
     weathers,
     pointers,
     rotators,
+    textImgs,
   };
   const indexJs = RUNTIME_TEMPLATE.replace('__SPEC__', JSON.stringify(spec, null, 2));
 

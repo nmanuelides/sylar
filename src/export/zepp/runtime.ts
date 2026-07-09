@@ -351,6 +351,25 @@ WatchFace({
       if ((t.kind === 'time' && t.seconds) || t.source === 'second') needSeconds = true
     })
 
+    // native live-temperature widgets — bound directly to the OS's own
+    // current-weather data type via TEXT_IMG's \`type\`, which the firmware
+    // keeps updated itself. No entry in \`updaters\` on purpose: setting
+    // \`text\` on a TEXT_IMG disables its \`type\` binding entirely, so this
+    // widget must never be touched again after creation.
+    ;(SPEC.textImgs || []).forEach((t) => {
+      ui.createWidget(ui.widget.TEXT_IMG, {
+        x: t.x, y: t.y, w: t.w, h: t.h,
+        align_h: ui.align.CENTER_H, align_v: ui.align.CENTER_V,
+        font_array: t.fontArray,
+        negative_image: t.negImage,
+        h_space: t.hSpace,
+        unit_en: t.unitEn, unit_sc: t.unitEn, unit_tc: t.unitEn,
+        imperial_unit_en: t.imperialUnitEn, imperial_unit_sc: t.imperialUnitEn, imperial_unit_tc: t.imperialUnitEn,
+        type: ui.data_type && ui.data_type.WEATHER_CURRENT,
+        show_level: level(t.aod),
+      })
+    })
+
     // analog hands
     SPEC.pointers.forEach((p) => {
       const cfg = { show_level: level(p.aod) }

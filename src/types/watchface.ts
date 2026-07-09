@@ -157,6 +157,14 @@ export interface NumberElement extends ElementBase {
   color: string;
   letterSpacing: number;
   showUnit: boolean;
+  /**
+   * Only meaningful when source is 'weather': render as a Zepp OS TEXT_IMG
+   * widget bound natively to the device's live current-temperature data
+   * type, instead of the usual sensor-polled TEXT widget (which has no true
+   * "current temperature" reading and falls back to a diurnal high/low
+   * approximation). Uses digit-sprite images generated from fontFamily.
+   */
+  nativeWeather?: boolean;
 }
 
 export type WeatherCondition =
