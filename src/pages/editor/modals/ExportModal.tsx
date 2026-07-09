@@ -30,6 +30,19 @@ export function ExportModal() {
     { phase: 'render'; current: number; total: number } | { phase: 'compile' } | null
   >(null);
   const [installQr, setInstallQr] = useState<{ qr: string; url: string } | null>(null);
+  // Reuse the last successful build as long as the project hasn't changed
+  // since — comparing the full serialized project catches any real edit
+  // without needing to track dirty flags. Capped just under the build
+  // server's own 1h artifact cleanup window (see server/index.js) so we
+  // never hand out a QR pointing at a build that's already been deleted.
+  const INSTALL_CACHE_TTL_MS = 50 * 60 * 1000;
+  const [installCache, setInstallCache] = useState<{
+    projectSnapshot: string;
+    qr: string;
+    url: string;
+    warnings: string[];
+    builtAt: number;
+  } | null>(null);
   const SEGMENT_COUNT = 16;
   const RENDER_SEGMENTS = 12;
   const filledSegments = installQr
@@ -53,6 +66,17 @@ export function ExportModal() {
 
   const installOnWatch = async () => {
     if (!buildServer) return;
+    const projectSnapshot = JSON.stringify(project);
+    if (
+      installCache &&
+      installCache.projectSnapshot === projectSnapshot &&
+      Date.now() - installCache.builtAt < INSTALL_CACHE_TTL_MS
+    ) {
+      setInstallQr({ qr: installCache.qr, url: installCache.url });
+      setExportWarnings(installCache.warnings);
+      toast('No changes since the last install — reusing that build', 'info');
+      return;
+    }
     setInstallQr(null);
     setExportWarnings([]);
     try {
@@ -80,6 +104,7 @@ export function ExportModal() {
         color: { dark: '#04121f', light: '#eaf6ff' },
       });
       setInstallQr({ qr, url });
+      setInstallCache({ projectSnapshot, qr, url, warnings, builtAt: Date.now() });
     } catch (err) {
       toast(`Install build failed: ${err instanceof Error ? err.message : 'unknown'}`, 'error');
     } finally {
