@@ -112,6 +112,7 @@ interface EditorStore {
   renameProject: (name: string) => void;
   setDevice: (deviceId: string) => void;
   setLanguage: (language: Language | undefined) => void;
+  setStepsGoal: (goal: number | undefined) => void;
   setBackground: (color: string) => void;
   setMode: (mode: EditorMode) => void;
   setZoom: (zoom: number) => void;
@@ -220,6 +221,8 @@ export const useEditor = create<EditorStore>((set, get) => ({
     set((s) => ({ project: { ...s.project, deviceId }, dirty: true })),
   setLanguage: (language) =>
     set((s) => ({ project: { ...s.project, language }, dirty: true })),
+  setStepsGoal: (stepsGoal) =>
+    set((s) => ({ project: { ...s.project, stepsGoal }, dirty: true })),
   setBackground: (color) =>
     set((s) => ({
       project:

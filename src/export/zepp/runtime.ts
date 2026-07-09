@@ -16,6 +16,7 @@ const level = (aod) => (aod ? SL_AOD : SL_NORMAL)
 
 const WEEK = SPEC.week || ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
 const MONTHS = SPEC.months || ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+const STEPS_GOAL = SPEC.stepsGoal || 10000
 const pad = (n) => (n < 10 ? '0' + n : '' + n)
 
 function makeSensor(name) {
@@ -174,7 +175,14 @@ function sourceVal(source) {
       }
       case 'steps': {
         const v = num(tryCall(sensor('Step'), ['getCurrent']))
-        return { text: v == null ? '--' : '' + v, frac: (v || 0) / 10000, unit: '' }
+        // Prefer the device's own daily goal when the sensor exposes one; the
+        // designer-configured value (or 10000) is the fallback.
+        const goal = num(tryCall(sensor('Step'), ['getTarget', 'getGoal'])) || STEPS_GOAL
+        return { text: v == null ? '--' : '' + v, frac: (v || 0) / goal, unit: '' }
+      }
+      case 'stepsGoal': {
+        const goal = num(tryCall(sensor('Step'), ['getTarget', 'getGoal'])) || STEPS_GOAL
+        return { text: '' + goal, frac: 1, unit: '' }
       }
       case 'battery': {
         const v = num(tryCall(sensor('Battery'), ['getCurrent']))

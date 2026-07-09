@@ -12,7 +12,7 @@ export function PreviewModal() {
   const setOpen = useEditor((s) => s.setPreviewOpen);
   const project = useEditor((s) => s.project);
   const liveData = useEffectiveLiveData();
-  const data = { ...liveData, language: project.language };
+  const data = { ...liveData, language: project.language, stepsGoal: project.stepsGoal };
   const [mode, setMode] = useState<'normal' | 'aod'>('normal');
   const device = getDevice(project.deviceId);
   const aod = mode === 'aod';

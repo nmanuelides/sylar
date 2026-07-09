@@ -145,7 +145,7 @@ export async function generateZeppProject(
 ): Promise<ZeppExportResult> {
   const warnings: string[] = [];
   const language = project.language ?? DEFAULT_LANGUAGE;
-  const previewData: LiveData = { ...PREVIEW_DATA, language };
+  const previewData: LiveData = { ...PREVIEW_DATA, language, stepsGoal: project.stepsGoal ?? 10000 };
   const device = getDevice(project.deviceId);
   if (device.id === 'balance3') {
     warnings.push(
@@ -740,6 +740,7 @@ export async function generateZeppProject(
     hasAodOverlay,
     week: WEEKDAY_NAMES[language],
     months: MONTH_NAMES[language],
+    stepsGoal: project.stepsGoal ?? 10000,
     texts,
     arcs,
     bars,

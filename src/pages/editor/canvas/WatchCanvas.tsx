@@ -37,7 +37,7 @@ export function WatchCanvas() {
   const gridSize = useEditor((s) => s.gridSize);
   const selectedIds = useEditor((s) => s.selectedIds);
   const liveData = useEffectiveLiveData();
-  const data = { ...liveData, language: project.language };
+  const data = { ...liveData, language: project.language, stepsGoal: project.stepsGoal };
   const device = getDevice(project.deviceId);
   const wrapRef = useRef<HTMLDivElement>(null);
 

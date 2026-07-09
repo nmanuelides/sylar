@@ -74,8 +74,12 @@ export function sourceValue(source: DataSource, data: LiveData): SourceValue {
       return { value: String(d.getFullYear()), unit: '', label: 'YEAR', fraction: 1 };
     case 'heartRate':
       return { value: String(data.heartRate), unit: ' BPM', label: 'HEART RATE', fraction: data.heartRate / 180 };
-    case 'steps':
-      return { value: String(data.steps), unit: '', label: 'STEPS', fraction: data.steps / 10000 };
+    case 'steps': {
+      const goal = data.stepsGoal ?? 10000;
+      return { value: String(data.steps), unit: '', label: 'STEPS', fraction: data.steps / goal };
+    }
+    case 'stepsGoal':
+      return { value: String(data.stepsGoal ?? 10000), unit: '', label: 'STEP GOAL', fraction: 1 };
     case 'battery':
       return { value: `${data.battery}%`, unit: '', label: 'BATTERY', fraction: data.battery / 100 };
     case 'calories':
@@ -125,6 +129,7 @@ export const DATA_SOURCES: { value: DataSource; label: string }[] = [
   { value: 'year', label: 'Year' },
   { value: 'heartRate', label: 'Heart rate' },
   { value: 'steps', label: 'Steps' },
+  { value: 'stepsGoal', label: 'Step goal' },
   { value: 'battery', label: 'Battery' },
   { value: 'calories', label: 'Calories' },
   { value: 'distance', label: 'Distance' },

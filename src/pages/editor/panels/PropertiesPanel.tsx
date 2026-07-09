@@ -1090,6 +1090,7 @@ function CanvasProperties() {
   const setGridSize = useEditor((s) => s.setGridSize);
   const setDevice = useEditor((s) => s.setDevice);
   const setLanguage = useEditor((s) => s.setLanguage);
+  const setStepsGoal = useEditor((s) => s.setStepsGoal);
   const setBackground = useEditor((s) => s.setBackground);
   const copyNormalToAod = useEditor((s) => s.copyNormalToAod);
   const commit = useEditor((s) => s.commit);
@@ -1109,6 +1110,15 @@ function CanvasProperties() {
           value={project.language ?? DEFAULT_LANGUAGE}
           options={LANGUAGES}
           onChange={(v) => setLanguage(v === DEFAULT_LANGUAGE ? undefined : v)}
+        />
+        <NumberField
+          label="Steps goal"
+          value={project.stepsGoal ?? 10000}
+          min={1000}
+          max={100000}
+          step={500}
+          onStart={commit}
+          onChange={(v) => setStepsGoal(Math.round(v))}
         />
         <ColorField
           label="Background"

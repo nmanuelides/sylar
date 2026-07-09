@@ -41,7 +41,8 @@ export type DataSource =
   | 'standHours'
   | 'sleepScore'
   | 'sleepDuration'
-  | 'floors';
+  | 'floors'
+  | 'stepsGoal';
 
 export type HandKind = 'hour' | 'minute' | 'second';
 export type HandStyle = 'classic' | 'sword' | 'thin';
@@ -349,6 +350,8 @@ export interface WatchfaceProject {
   themeBindings?: Record<string, string>;
   /** Language for day/month names (dayName, monthName, date complication). Undefined = English. */
   language?: Language;
+  /** Daily step target used for step-progress fractions and the "stepsGoal" data source. Undefined = 10000. */
+  stepsGoal?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -386,4 +389,6 @@ export interface LiveData {
   floors: number;
   /** Language for dayName/monthName lookups. Undefined = English. */
   language?: Language;
+  /** Daily step target (project.stepsGoal). Undefined = 10000. */
+  stepsGoal?: number;
 }
