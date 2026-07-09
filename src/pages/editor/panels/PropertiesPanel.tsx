@@ -13,6 +13,7 @@ import { nearestWeight, weightsFor } from '@/data/fonts';
 import { WEATHER_CONDITIONS } from '@/data/icons';
 import { DATA_SOURCES } from '@/lib/time';
 import { hasPartialShadowSupport, supportsShadow } from '@/lib/elementClassification';
+import { DEFAULT_LANGUAGE, LANGUAGES } from '@/lib/i18n';
 import { FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import {
   ColorField,
@@ -909,6 +910,7 @@ function CanvasProperties() {
   const gridSize = useEditor((s) => s.gridSize);
   const setGridSize = useEditor((s) => s.setGridSize);
   const setDevice = useEditor((s) => s.setDevice);
+  const setLanguage = useEditor((s) => s.setLanguage);
   const setBackground = useEditor((s) => s.setBackground);
   const copyNormalToAod = useEditor((s) => s.copyNormalToAod);
   const commit = useEditor((s) => s.commit);
@@ -922,6 +924,12 @@ function CanvasProperties() {
           value={project.deviceId}
           options={DEVICES.map((d) => ({ value: d.id, label: `${d.name} (${d.width}×${d.height})` }))}
           onChange={(v) => setDevice(v)}
+        />
+        <SelectField
+          label="Language"
+          value={project.language ?? DEFAULT_LANGUAGE}
+          options={LANGUAGES}
+          onChange={(v) => setLanguage(v === DEFAULT_LANGUAGE ? undefined : v)}
         />
         <ColorField
           label="Background"

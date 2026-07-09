@@ -11,6 +11,7 @@ import { DEFAULT_DEVICE_ID, getDevice } from '@/data/devices';
 import { starterElements } from '@/data/library';
 import { projectId, uid } from '@/lib/uid';
 import { clamp, resolvePivot } from '@/lib/geometry';
+import type { Language } from '@/lib/i18n';
 
 interface Snapshot {
   normal: WatchElement[];
@@ -109,6 +110,7 @@ interface EditorStore {
   newProject: (deviceId?: string, name?: string) => void;
   renameProject: (name: string) => void;
   setDevice: (deviceId: string) => void;
+  setLanguage: (language: Language | undefined) => void;
   setBackground: (color: string) => void;
   setMode: (mode: EditorMode) => void;
   setZoom: (zoom: number) => void;
@@ -213,6 +215,8 @@ export const useEditor = create<EditorStore>((set, get) => ({
     set((s) => ({ project: { ...s.project, name }, dirty: true })),
   setDevice: (deviceId) =>
     set((s) => ({ project: { ...s.project, deviceId }, dirty: true })),
+  setLanguage: (language) =>
+    set((s) => ({ project: { ...s.project, language }, dirty: true })),
   setBackground: (color) =>
     set((s) => ({
       project:

@@ -23,7 +23,8 @@ import {
   resolvePivot,
   roundedRectBoundaryPoint,
 } from '@/lib/geometry';
-import { formatTime, handAngle, rotationSourceAngle, sourceValue, WEEKDAYS } from '@/lib/time';
+import { formatTime, handAngle, rotationSourceAngle, sourceValue } from '@/lib/time';
+import { DEFAULT_LANGUAGE, WEEKDAY_NAMES } from '@/lib/i18n';
 import { ShadowDefs, useShadowFilterId } from './shadows';
 
 /** Ratio between rendered font size and element box height for text elements */
@@ -108,7 +109,7 @@ function DateCard({
             fontSize={h * 0.17 * label.scale}
             letterSpacing={s * 0.01}
           >
-            {WEEKDAYS[data.now.getDay()]}
+            {WEEKDAY_NAMES[data.language ?? DEFAULT_LANGUAGE][data.now.getDay()]}
           </text>
           <text
             x={value.dx}

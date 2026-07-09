@@ -14,8 +14,8 @@ const SL_NORMAL = ui.show_level.ONLY_NORMAL
 const SL_AOD = ui.show_level.ONAL_AOD || ui.show_level.ONLY_AOD || SL_NORMAL
 const level = (aod) => (aod ? SL_AOD : SL_NORMAL)
 
-const WEEK = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
-const MONTHS = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
+const WEEK = SPEC.week || ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT']
+const MONTHS = SPEC.months || ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC']
 const pad = (n) => (n < 10 ? '0' + n : '' + n)
 
 function makeSensor(name) {

@@ -1,3 +1,5 @@
+import type { Language } from '@/lib/i18n';
+
 export type DeviceShape = 'round' | 'rect';
 
 export interface Device {
@@ -304,6 +306,8 @@ export interface WatchfaceProject {
   theme?: ThemeColor[];
   /** Maps a binding key ("el:<elementId>:<propKey>" or "bg:normal"/"bg:aod") to a theme color id */
   themeBindings?: Record<string, string>;
+  /** Language for day/month names (dayName, monthName, date complication). Undefined = English. */
+  language?: Language;
   createdAt: string;
   updatedAt: string;
 }
@@ -339,4 +343,6 @@ export interface LiveData {
   /** Total sleep in minutes */
   sleepMinutes: number;
   floors: number;
+  /** Language for dayName/monthName lookups. Undefined = English. */
+  language?: Language;
 }

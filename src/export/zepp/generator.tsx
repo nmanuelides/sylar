@@ -3,6 +3,7 @@ import type {
   ComplicationElement,
   DataSource,
   HandKind,
+  LiveData,
   WatchElement,
   WatchfaceProject,
 } from '@/types/watchface';
@@ -12,6 +13,7 @@ import { PREVIEW_DATA } from '@/store/liveDataStore';
 import { resolvePivot } from '@/lib/geometry';
 import { slugify } from '@/lib/download';
 import { hasPartialShadowSupport, isLiveText, supportsShadow } from '@/lib/elementClassification';
+import { DEFAULT_LANGUAGE, MONTH_NAMES, WEEKDAY_NAMES } from '@/lib/i18n';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { ElementRenderer, FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import { ShadowDefs, shadowFilterMargin } from '@/components/watchface/shadows';
@@ -136,6 +138,8 @@ export async function generateZeppProject(
   onProgress: (step: string) => void,
 ): Promise<ZeppExportResult> {
   const warnings: string[] = [];
+  const language = project.language ?? DEFAULT_LANGUAGE;
+  const previewData: LiveData = { ...PREVIEW_DATA, language };
   const device = getDevice(project.deviceId);
   if (device.id === 'balance3') {
     warnings.push(
@@ -164,7 +168,7 @@ export async function generateZeppProject(
       device={device}
       elements={baseNormal}
       background={project.backgroundColor}
-      data={PREVIEW_DATA}
+      data={previewData}
       width={device.width}
       staticOnly
     />,
@@ -179,7 +183,7 @@ export async function generateZeppProject(
         device={device}
         elements={overlayNormal}
         background="transparent"
-        data={PREVIEW_DATA}
+        data={previewData}
         width={device.width}
         staticOnly
       />,
@@ -198,7 +202,7 @@ export async function generateZeppProject(
         device={device}
         elements={baseAod}
         background={project.aodBackgroundColor}
-        data={PREVIEW_DATA}
+        data={previewData}
         width={device.width}
         staticOnly
       />,
@@ -213,7 +217,7 @@ export async function generateZeppProject(
           device={device}
           elements={overlayAod}
           background="transparent"
-          data={PREVIEW_DATA}
+          data={previewData}
           width={device.width}
           staticOnly
         />,
@@ -249,7 +253,7 @@ export async function generateZeppProject(
       device={device}
       elements={project.normal}
       background={project.backgroundColor}
-      data={PREVIEW_DATA}
+      data={previewData}
       width={240}
     />,
     240,
@@ -309,7 +313,7 @@ export async function generateZeppProject(
               <ShadowDefs id="rot-shadow" shadows={el.shadows} />
             </defs>
           ) : null}
-          <ElementRenderer el={el} data={PREVIEW_DATA} />
+          <ElementRenderer el={el} data={previewData} />
         </g>
       </svg>,
       w,
@@ -374,7 +378,7 @@ export async function generateZeppProject(
             ) : null}
             <ElementRenderer
               el={{ ...el, condition: cond.value as never }}
-              data={PREVIEW_DATA}
+              data={previewData}
             />
           </g>
         </svg>,
@@ -615,6 +619,8 @@ export async function generateZeppProject(
     hasAod,
     hasOverlay,
     hasAodOverlay,
+    week: WEEKDAY_NAMES[language],
+    months: MONTH_NAMES[language],
     texts,
     arcs,
     bars,
@@ -625,9 +631,11 @@ export async function generateZeppProject(
   const indexJs = RUNTIME_TEMPLATE.replace('__SPEC__', JSON.stringify(spec, null, 2));
 
   if (googleFonts.size > 0) {
-    warnings.push(
-      `Fetching ${googleFonts.size} Google Font file${googleFonts.size > 1 ? 's' : ''} at build time (needs internet on the build server) — see google-fonts.json.`,
-    );
+    // Not pushed as an export warning: the build server fetches these
+    // automatically on every build as long as it has internet access (true
+    // for both local dev and the deployed build server), so this fires on
+    // every export using a Google Font regardless of whether anything will
+    // actually go wrong — pure noise once that's confirmed working.
     files['google-fonts.json'] = strToU8(
       JSON.stringify(
         [...googleFonts.values()].map((f) => ({ ...f, path: `${assetsDir}/${f.path}` })),

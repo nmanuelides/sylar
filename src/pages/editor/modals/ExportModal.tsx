@@ -236,7 +236,7 @@ export function ExportModal() {
             device={device}
             elements={project.normal}
             background={project.backgroundColor}
-            data={PREVIEW_DATA}
+            data={{ ...PREVIEW_DATA, language: project.language }}
             width={device.width}
           />
         </div>
@@ -245,7 +245,7 @@ export function ExportModal() {
             device={device}
             elements={project.aod}
             background={project.aodBackgroundColor}
-            data={PREVIEW_DATA}
+            data={{ ...PREVIEW_DATA, language: project.language }}
             width={device.width}
           />
         </div>

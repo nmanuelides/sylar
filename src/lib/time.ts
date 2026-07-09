@@ -1,4 +1,5 @@
 import type { DataSource, HandKind, LiveData, RotationSource, TimeFormat } from '@/types/watchface';
+import { DEFAULT_LANGUAGE, MONTH_NAMES, WEEKDAY_NAMES } from '@/lib/i18n';
 
 export function handAngle(hand: HandKind, d: Date): number {
   const s = d.getSeconds();
@@ -39,11 +40,6 @@ export function formatTime(d: Date, format: TimeFormat): { main: string; ampm: s
   return { main, ampm: twelve ? (h24 < 12 ? 'AM' : 'PM') : '' };
 }
 
-export const WEEKDAYS = ['SUN', 'MON', 'TUE', 'WED', 'THU', 'FRI', 'SAT'];
-export const MONTHS = [
-  'JAN', 'FEB', 'MAR', 'APR', 'MAY', 'JUN',
-  'JUL', 'AUG', 'SEP', 'OCT', 'NOV', 'DEC',
-];
 
 export interface SourceValue {
   value: string;
@@ -54,6 +50,7 @@ export interface SourceValue {
 
 export function sourceValue(source: DataSource, data: LiveData): SourceValue {
   const d = data.now;
+  const lang = data.language ?? DEFAULT_LANGUAGE;
   switch (source) {
     case 'hour':
       return { value: pad(d.getHours()), unit: '', label: 'HOUR', fraction: d.getHours() / 24 };
@@ -68,11 +65,11 @@ export function sourceValue(source: DataSource, data: LiveData): SourceValue {
     case 'dayNumber':
       return { value: String(d.getDate()), unit: '', label: 'DAY', fraction: d.getDate() / 31 };
     case 'dayName':
-      return { value: WEEKDAYS[d.getDay()], unit: '', label: 'WEEKDAY', fraction: (d.getDay() || 7) / 7 };
+      return { value: WEEKDAY_NAMES[lang][d.getDay()], unit: '', label: 'WEEKDAY', fraction: (d.getDay() || 7) / 7 };
     case 'month':
       return { value: pad(d.getMonth() + 1), unit: '', label: 'MONTH', fraction: (d.getMonth() + 1) / 12 };
     case 'monthName':
-      return { value: MONTHS[d.getMonth()], unit: '', label: 'MONTH', fraction: (d.getMonth() + 1) / 12 };
+      return { value: MONTH_NAMES[lang][d.getMonth()], unit: '', label: 'MONTH', fraction: (d.getMonth() + 1) / 12 };
     case 'year':
       return { value: String(d.getFullYear()), unit: '', label: 'YEAR', fraction: 1 };
     case 'heartRate':
