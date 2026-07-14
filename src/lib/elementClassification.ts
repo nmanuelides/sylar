@@ -21,3 +21,19 @@ export const supportsShadow = (el: WatchElement): boolean => !isLiveText(el);
  */
 export const hasPartialShadowSupport = (el: WatchElement): boolean =>
   el.type === 'progressBar' || el.type === 'complication';
+
+/**
+ * Whether bevel/emboss is offered. Restricted to elements whose full artwork
+ * renders statically (or as one baked rotating image, like hands) — elements
+ * with live-updating parts (progress fills, complication values, live text,
+ * weather icons swap live but are still baked per-condition so they qualify)
+ * would only bevel their static chrome, which looks broken.
+ */
+export const supportsBevel = (el: WatchElement): boolean =>
+  el.type === 'shape' ||
+  el.type === 'image' ||
+  el.type === 'text' ||
+  el.type === 'icon' ||
+  el.type === 'weatherIcon' ||
+  el.type === 'tickMarks' ||
+  el.type === 'hand';

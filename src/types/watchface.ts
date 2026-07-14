@@ -48,7 +48,7 @@ export type HandKind = 'hour' | 'minute' | 'second';
 export type HandStyle = 'classic' | 'sword' | 'thin';
 
 /** Live value an element's rotation can continuously track */
-export type RotationSource = HandKind | 'weekday' | 'battery';
+export type RotationSource = HandKind | 'weekday' | 'monthday' | 'battery';
 
 export type ComplicationKind =
   | 'heartRate'
@@ -70,6 +70,21 @@ export interface ShadowSpec {
   inner: boolean;
 }
 
+export interface BevelSpec {
+  /** 'bevel' = raised out of the face, 'emboss' = pressed into it (highlight/shade swapped) */
+  style: 'bevel' | 'emboss';
+  /** How far the highlight/shade bands reach into the shape, in px */
+  depth: number;
+  /** Softness of the bands, in px */
+  blur: number;
+  /** Direction the light comes from, degrees clockwise from the top (315 = top-left) */
+  angle: number;
+  highlightColor: string;
+  highlightOpacity: number;
+  shadowColor: string;
+  shadowOpacity: number;
+}
+
 export interface ElementBase {
   id: string;
   name: string;
@@ -85,6 +100,12 @@ export interface ElementBase {
   locked: boolean;
   /** Continuously rotates the element to track a live value (ignored on hand elements, which use `hand` instead) */
   rotateWith?: RotationSource;
+  /**
+   * Rotate counterclockwise as the value grows — for dial artwork whose scale
+   * increases counterclockwise. Only honored for weekday/monthday/battery
+   * (time hands export as native pointers, which can't reverse).
+   */
+  rotateReverse?: boolean;
   /** Rotation pivot as a fraction of the box (each axis may fall outside 0–1); defaults to the center (0.5, 0.5) */
   pivotX?: number;
   pivotY?: number;
@@ -95,6 +116,8 @@ export interface ElementBase {
   flipY?: boolean;
   /** Stacked drop-shadows, rendered back-to-front (array order) */
   shadows?: ShadowSpec[];
+  /** Bevel/emboss edge lighting, rendered as a pair of inner shadows on top of `shadows` */
+  bevel?: BevelSpec;
 }
 
 export interface ComplicationElement extends ElementBase {
@@ -139,8 +162,12 @@ export interface DigitalTimeElement extends ElementBase {
   showAmPm: boolean;
   fontFamily: string;
   fontWeight: number;
+  /** Fill paint; 'none' = unfilled (outline-only text via stroke) */
   color: string;
   letterSpacing: number;
+  strokeColor?: string;
+  /** 0 or unset = no stroke */
+  strokeWidth?: number;
 }
 
 export interface TextElement extends ElementBase {
@@ -148,9 +175,13 @@ export interface TextElement extends ElementBase {
   text: string;
   fontFamily: string;
   fontWeight: number;
+  /** Fill paint; 'none' = unfilled (outline-only text via stroke) */
   color: string;
   letterSpacing: number;
   uppercase: boolean;
+  strokeColor?: string;
+  /** 0 or unset = no stroke */
+  strokeWidth?: number;
 }
 
 export interface NumberElement extends ElementBase {
@@ -158,9 +189,13 @@ export interface NumberElement extends ElementBase {
   source: DataSource;
   fontFamily: string;
   fontWeight: number;
+  /** Fill paint; 'none' = unfilled (outline-only text via stroke) */
   color: string;
   letterSpacing: number;
   showUnit: boolean;
+  strokeColor?: string;
+  /** 0 or unset = no stroke */
+  strokeWidth?: number;
   /**
    * Only meaningful when source is 'weather': render as a Zepp OS TEXT_IMG
    * widget bound natively to the device's live current-temperature data
@@ -195,10 +230,14 @@ export interface IconElement extends ElementBase {
   type: 'icon';
   /** Font Awesome icon name (or legacy built-in key) */
   icon: string;
+  /** Fill paint; 'none' = unfilled (outline-only icon via stroke) */
   color: string;
   /** Font Awesome SVG path data (viewBox `iconWidth` × 512); legacy elements omit it */
   iconPath?: string;
   iconWidth?: number;
+  strokeColor?: string;
+  /** Outline width in on-canvas px (compensated for the glyph's internal scale); 0 or unset = no stroke */
+  strokeWidth?: number;
 }
 
 export interface ProgressBarElement extends ElementBase {
@@ -232,11 +271,17 @@ export interface TickMarksElement extends ElementBase {
   count: number;
   majorEvery: number;
   shape: 'line' | 'dot' | 'rect';
+  /** Tick fill; 'none' = unfilled (outline-only via stroke; dot/rect shapes only) */
   color: string;
   majorColor: string;
+  /** Outline around ticks (dot/rect shapes) and labels; 0 or unset = no stroke */
+  strokeColor?: string;
+  strokeWidth?: number;
   length: number;
   majorLength: number;
   thickness: number;
+  /** Thickness of major ticks; falls back to `thickness` when unset */
+  majorThickness?: number;
   /** Corner rounding for 'rect' shaped ticks — 0 = sharp, thickness/2 = pill */
   cornerRadius?: number;
   /** How the ticks are arranged: around a circle (default) or a rounded-rectangle track */
@@ -264,6 +309,13 @@ export interface TickMarksElement extends ElementBase {
    * the numeric sequence above when empty/unset.
    */
   labels?: string[];
+  /**
+   * Auto-generates the ring text — localized weekday names (7 positions,
+   * Monday at top, matching the weekday rotator) or day-of-month numbers
+   * (31 positions, 1 at top, matching the monthday rotator). Overrides
+   * `labels` and the numeric fields while set.
+   */
+  dayMode?: 'weekday' | 'monthday';
   /**
    * Rotate each label to follow the ring's curve (tangent to the circle at
    * its position) instead of staying upright. Bottom-half labels are flipped

@@ -21,10 +21,19 @@ export function EditorPage() {
   const { id } = useParams<{ id: string }>();
   const project = useEditor((s) => s.project);
   const setProject = useEditor((s) => s.setProject);
+  const newProject = useEditor((s) => s.newProject);
   useShortcuts();
 
   useEffect(() => {
-    if (!id || id === project.id) return;
+    // Bare /create (no id) is "start a new watchface" — without this, it was
+    // silently reusing whatever project was already in memory (the last one
+    // loaded, or the throwaway one the store boots with), which looked like
+    // every watchface shared the same theme/elements.
+    if (!id) {
+      newProject();
+      return;
+    }
+    if (id === project.id) return;
     loadProject(id)
       .then((loaded) => {
         if (loaded) setProject(loaded);

@@ -261,169 +261,166 @@ WatchFace({
     const updaters = []
     let needSeconds = false
 
-    // static background(s)
-    ui.createWidget(ui.widget.IMG, {
-      x: 0, y: 0, src: 'bg.png', show_level: SL_NORMAL,
-    })
-    if (SPEC.hasAod) {
-      ui.createWidget(ui.widget.IMG, {
-        x: 0, y: 0, src: 'aod-bg.png', show_level: SL_AOD,
-      })
-    }
-
-    // progress arcs (under texts, over background)
-    SPEC.arcs.forEach((a) => {
-      const w = ui.createWidget(ui.widget.ARC_PROGRESS, {
-        center_x: a.cx, center_y: a.cy, radius: a.r,
-        start_angle: a.start, end_angle: a.end,
-        line_width: a.width, color: a.color, level: 0,
-        corner_flag: a.rounded ? 1 : 0,
-        show_level: level(a.aod),
-      })
-      updaters.push(() => {
-        const pct = Math.round(Math.max(0, Math.min(1, sourceVal(a.source).frac)) * 100)
-        try { w.setProperty(ui.prop.LEVEL, pct) } catch (e) {
-          try { w.setProperty(ui.prop.MORE, { level: pct }) } catch (e2) { /* ignore */ }
-        }
-      })
-    })
-
-    // linear bars
-    SPEC.bars.forEach((b) => {
-      if (b.segments) {
-        // Zepp OS has no native multi-block fill widget — one FILL_RECT per
-        // segment, each independently sized from the overall source fraction.
-        const n = b.segments
-        const gap = b.gap || 0
-        for (let i = 0; i < n; i++) {
-          const segX = b.x + i * (b.w + gap)
-          const w = ui.createWidget(ui.widget.FILL_RECT, {
-            x: segX, y: b.y, w: 1, h: b.h, radius: b.radius, color: b.color,
-            show_level: level(b.aod),
-          })
-          updaters.push(() => {
-            const frac = Math.max(0, Math.min(1, sourceVal(b.source).frac))
-            const segFrac = Math.max(0, Math.min(1, frac * n - i))
-            const width = segFrac > 0 ? Math.max(b.radius * 2, Math.round(b.w * segFrac)) : 1
-            try { w.setProperty(ui.prop.MORE, { x: segX, y: b.y, w: width, h: b.h }) } catch (e) { /* ignore */ }
-          })
-        }
+    // Every layer is created in exactly the design's own element order, so
+    // Zepp OS's creation-order-is-z-order stacking always matches the layer
+    // stack — a baked image between two live widgets stays between them,
+    // not shoved above (or below) both.
+    SPEC.layers.forEach((l) => {
+      if (l.kind === 'bg') {
+        ui.createWidget(ui.widget.IMG, { x: 0, y: 0, src: l.path, show_level: level(l.aod) })
         return
       }
-      const w = ui.createWidget(ui.widget.FILL_RECT, {
-        x: b.x, y: b.y, w: 1, h: b.h, radius: b.radius, color: b.color,
-        show_level: level(b.aod),
-      })
-      updaters.push(() => {
-        const frac = Math.max(0, Math.min(1, sourceVal(b.source).frac))
-        const width = Math.max(b.h, Math.round(b.w * frac))
-        try { w.setProperty(ui.prop.MORE, { x: b.x, y: b.y, w: width, h: b.h }) } catch (e) { /* ignore */ }
-      })
-    })
 
-    // live weather condition icons
-    SPEC.weathers.forEach((wi) => {
-      const w = ui.createWidget(ui.widget.IMG, {
-        x: wi.x, y: wi.y, src: wi.dir + '/partly.png', show_level: level(wi.aod),
-      })
-      updaters.push(() => {
-        const idx = weatherInfo().index
-        const name = idx == null ? 'partly' : weatherAsset(idx)
-        try { w.setProperty(ui.prop.SRC, wi.dir + '/' + name + '.png') } catch (e) { /* ignore */ }
-      })
-    })
-
-    // live texts
-    SPEC.texts.forEach((t) => {
-      const cfg = {
-        x: t.x, y: t.y, w: t.w, h: t.h,
-        color: t.color, text_size: t.size,
-        align_h: ui.align.CENTER_H, align_v: ui.align.CENTER_V,
-        text_style: ui.text_style.NONE,
-        text: '',
-        show_level: level(t.aod),
+      if (l.kind === 'arc') {
+        const w = ui.createWidget(ui.widget.ARC_PROGRESS, {
+          center_x: l.cx, center_y: l.cy, radius: l.r,
+          start_angle: l.start, end_angle: l.end,
+          line_width: l.width, color: l.color, level: 0,
+          corner_flag: l.rounded ? 1 : 0,
+          show_level: level(l.aod),
+        })
+        updaters.push(() => {
+          const pct = Math.round(Math.max(0, Math.min(1, sourceVal(l.source).frac)) * 100)
+          try { w.setProperty(ui.prop.LEVEL, pct) } catch (e) {
+            try { w.setProperty(ui.prop.MORE, { level: pct }) } catch (e2) { /* ignore */ }
+          }
+        })
+        return
       }
-      if (t.font) cfg.font = t.font
-      const w = ui.createWidget(ui.widget.TEXT, cfg)
-      const update = () => {
-        let str
-        if (t.kind === 'time') {
-          str = timeText(t)
-        } else {
-          const v = sourceVal(t.source)
-          str = v.text + (t.showUnit && v.unit ? v.unit : '')
+
+      if (l.kind === 'bar') {
+        if (l.segments) {
+          // Zepp OS has no native multi-block fill widget — one FILL_RECT
+          // per segment, each independently sized from the overall fraction.
+          const n = l.segments
+          const gap = l.gap || 0
+          for (let i = 0; i < n; i++) {
+            const segX = l.x + i * (l.w + gap)
+            const w = ui.createWidget(ui.widget.FILL_RECT, {
+              x: segX, y: l.y, w: 1, h: l.h, radius: l.radius, color: l.color,
+              show_level: level(l.aod),
+            })
+            updaters.push(() => {
+              const frac = Math.max(0, Math.min(1, sourceVal(l.source).frac))
+              const segFrac = Math.max(0, Math.min(1, frac * n - i))
+              const width = segFrac > 0 ? Math.max(l.radius * 2, Math.round(l.w * segFrac)) : 1
+              try { w.setProperty(ui.prop.MORE, { x: segX, y: l.y, w: width, h: l.h }) } catch (e) { /* ignore */ }
+            })
+          }
+          return
         }
-        try { w.setProperty(ui.prop.MORE, { text: str }) } catch (e) { /* ignore */ }
+        const w = ui.createWidget(ui.widget.FILL_RECT, {
+          x: l.x, y: l.y, w: 1, h: l.h, radius: l.radius, color: l.color,
+          show_level: level(l.aod),
+        })
+        updaters.push(() => {
+          const frac = Math.max(0, Math.min(1, sourceVal(l.source).frac))
+          const width = Math.max(l.h, Math.round(l.w * frac))
+          try { w.setProperty(ui.prop.MORE, { x: l.x, y: l.y, w: width, h: l.h }) } catch (e) { /* ignore */ }
+        })
+        return
       }
-      updaters.push(update)
-      if ((t.kind === 'time' && t.seconds) || t.source === 'second') needSeconds = true
-    })
 
-    // native live-temperature widgets — bound directly to the OS's own
-    // current-weather data type via TEXT_IMG's \`type\`, which the firmware
-    // keeps updated itself. No entry in \`updaters\` on purpose: setting
-    // \`text\` on a TEXT_IMG disables its \`type\` binding entirely, so this
-    // widget must never be touched again after creation.
-    ;(SPEC.textImgs || []).forEach((t) => {
-      ui.createWidget(ui.widget.TEXT_IMG, {
-        x: t.x, y: t.y, w: t.w, h: t.h,
-        align_h: ui.align.CENTER_H, align_v: ui.align.CENTER_V,
-        font_array: t.fontArray,
-        negative_image: t.negImage,
-        h_space: t.hSpace,
-        unit_en: t.unitEn, unit_sc: t.unitEn, unit_tc: t.unitEn,
-        imperial_unit_en: t.imperialUnitEn, imperial_unit_sc: t.imperialUnitEn, imperial_unit_tc: t.imperialUnitEn,
-        type: ui.data_type && ui.data_type.WEATHER_CURRENT,
-        show_level: level(t.aod),
-      })
-    })
+      if (l.kind === 'weather') {
+        const w = ui.createWidget(ui.widget.IMG, {
+          x: l.x, y: l.y, src: l.dir + '/partly.png', show_level: level(l.aod),
+        })
+        updaters.push(() => {
+          const idx = weatherInfo().index
+          const name = idx == null ? 'partly' : weatherAsset(idx)
+          try { w.setProperty(ui.prop.SRC, l.dir + '/' + name + '.png') } catch (e) { /* ignore */ }
+        })
+        return
+      }
 
-    // analog hands
-    SPEC.pointers.forEach((p) => {
-      const cfg = { show_level: level(p.aod) }
-      cfg[p.kind + '_centerX'] = p.cx
-      cfg[p.kind + '_centerY'] = p.cy
-      cfg[p.kind + '_posX'] = p.px
-      cfg[p.kind + '_posY'] = p.py
-      cfg[p.kind + '_path'] = p.path
-      ui.createWidget(ui.widget.TIME_POINTER, cfg)
-    })
-
-    // generic rotating elements (weekday / battery) — no native pointer widget
-    // for these, so a plain IMG's angle is updated by hand, same mechanism
-    // TIME_POINTER itself uses under the hood (pos_x/pos_y/center_x/center_y).
-    SPEC.rotators.forEach((rt) => {
-      const w = ui.createWidget(ui.widget.IMG, {
-        x: 0, y: 0, w: SPEC.width, h: SPEC.height,
-        pos_x: rt.px, pos_y: rt.py,
-        center_x: rt.cx, center_y: rt.cy,
-        src: rt.path, angle: rt.offset,
-        show_level: level(rt.aod),
-      })
-      updaters.push(() => {
-        let deg = rt.offset
-        if (rt.source === 'battery') {
-          const v = num(tryCall(sensor('Battery'), ['getCurrent'])) || 0
-          deg += (Math.max(0, Math.min(100, v)) / 100) * 360
-        } else if (rt.source === 'weekday') {
-          const day = time ? time.getDay() : 1 // Zepp Time sensor: 1=Monday..7=Sunday
-          const idx = ((day - 1) % 7 + 7) % 7
-          deg += idx * (360 / 7)
+      if (l.kind === 'text') {
+        const cfg = {
+          x: l.x, y: l.y, w: l.w, h: l.h,
+          color: l.color, text_size: l.size,
+          align_h: ui.align.CENTER_H, align_v: ui.align.CENTER_V,
+          text_style: ui.text_style.NONE,
+          text: '',
+          show_level: level(l.aod),
         }
-        try { w.setProperty(ui.prop.ANGLE, deg) } catch (e) { /* ignore */ }
-      })
-    })
+        if (l.font) cfg.font = l.font
+        const w = ui.createWidget(ui.widget.TEXT, cfg)
+        const update = () => {
+          let str
+          if (l.textKind === 'time') {
+            str = timeText(l)
+          } else {
+            const v = sourceVal(l.source)
+            str = v.text + (l.showUnit && v.unit ? v.unit : '')
+          }
+          try { w.setProperty(ui.prop.MORE, { text: str }) } catch (e) { /* ignore */ }
+        }
+        updaters.push(update)
+        if ((l.textKind === 'time' && l.seconds) || l.source === 'second') needSeconds = true
+        return
+      }
 
-    // static overlays — layers that sat above a progress bar/complication/
-    // live text/hand in the editor's stack. Those live widgets always draw
-    // above the flattened background image, so anything meant to sit above
-    // them has to be its own image created last, on top of everything else.
-    if (SPEC.hasOverlay) {
-      ui.createWidget(ui.widget.IMG, { x: 0, y: 0, src: 'overlay.png', show_level: SL_NORMAL })
-    }
-    if (SPEC.hasAodOverlay) {
-      ui.createWidget(ui.widget.IMG, { x: 0, y: 0, src: 'aod-overlay.png', show_level: SL_AOD })
-    }
+      if (l.kind === 'textImg') {
+        // Bound directly to the OS's own current-weather data type via
+        // TEXT_IMG's \`type\`, which the firmware keeps updated itself. No
+        // updater on purpose: setting \`text\` on a TEXT_IMG disables its
+        // \`type\` binding entirely, so this widget must never be touched
+        // again after creation.
+        ui.createWidget(ui.widget.TEXT_IMG, {
+          x: l.x, y: l.y, w: l.w, h: l.h,
+          align_h: ui.align.CENTER_H, align_v: ui.align.CENTER_V,
+          font_array: l.fontArray,
+          negative_image: l.negImage,
+          h_space: l.hSpace,
+          unit_en: l.unitEn, unit_sc: l.unitEn, unit_tc: l.unitEn,
+          imperial_unit_en: l.imperialUnitEn, imperial_unit_sc: l.imperialUnitEn, imperial_unit_tc: l.imperialUnitEn,
+          type: ui.data_type && ui.data_type.WEATHER_CURRENT,
+          show_level: level(l.aod),
+        })
+        return
+      }
+
+      if (l.kind === 'pointer') {
+        const cfg = { show_level: level(l.aod) }
+        cfg[l.hand + '_centerX'] = l.cx
+        cfg[l.hand + '_centerY'] = l.cy
+        cfg[l.hand + '_posX'] = l.px
+        cfg[l.hand + '_posY'] = l.py
+        cfg[l.hand + '_path'] = l.path
+        ui.createWidget(ui.widget.TIME_POINTER, cfg)
+        return
+      }
+
+      if (l.kind === 'rotator') {
+        // No native pointer widget for weekday/monthday/battery — a plain
+        // IMG's angle is updated by hand. Unlike TIME_POINTER's posX/posY
+        // (pivot within the image), IMG's pos_x/pos_y is the image's top-left,
+        // so offset it to land the in-image pivot (px,py) on the rotation
+        // center (cx,cy).
+        const w = ui.createWidget(ui.widget.IMG, {
+          x: 0, y: 0, w: SPEC.width, h: SPEC.height,
+          pos_x: l.cx - l.px, pos_y: l.cy - l.py,
+          center_x: l.cx, center_y: l.cy,
+          src: l.path, angle: l.offset,
+          show_level: level(l.aod),
+        })
+        updaters.push(() => {
+          let delta = 0
+          if (l.source === 'battery') {
+            const v = num(tryCall(sensor('Battery'), ['getCurrent'])) || 0
+            delta = (Math.max(0, Math.min(100, v)) / 100) * 360
+          } else if (l.source === 'weekday') {
+            const day = time ? time.getDay() : 1 // Zepp Time sensor: 1=Monday..7=Sunday
+            const idx = ((day - 1) % 7 + 7) % 7
+            delta = idx * (360 / 7)
+          } else if (l.source === 'monthday') {
+            const date = num(time && time.getDate ? time.getDate() : 1) || 1 // 1..31
+            delta = (((date - 1) % 31 + 31) % 31) * (360 / 31)
+          }
+          const deg = l.offset + (l.reverse ? -delta : delta)
+          try { w.setProperty(ui.prop.ANGLE, ((deg % 360) + 360) % 360) } catch (e) { /* ignore */ }
+        })
+      }
+    })
 
     const refreshAll = () => updaters.forEach((u) => u())
     refreshAll()

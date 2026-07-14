@@ -16,7 +16,7 @@ import { hasPartialShadowSupport, isLiveText, supportsShadow } from '@/lib/eleme
 import { DEFAULT_LANGUAGE, MONTH_NAMES, WEEKDAY_NAMES } from '@/lib/i18n';
 import { WatchfaceSVG } from '@/components/watchface/WatchfaceSVG';
 import { ElementRenderer, FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
-import { ShadowDefs, shadowFilterMargin } from '@/components/watchface/shadows';
+import { ShadowDefs, effectiveShadows, shadowFilterMargin } from '@/components/watchface/shadows';
 import { resolveElementGradients } from '@/components/watchface/gradientDefs';
 import { decodeGradient, isGradientValue, gradientFallbackColor } from '@/lib/gradient';
 import { dataUrlToBytes, renderNodeToPng, renderGlyphToPng } from './rasterize';
@@ -58,7 +58,7 @@ interface GoogleFontNeed {
 }
 
 interface TextSpec {
-  kind: 'time' | 'source';
+  textKind: 'time' | 'source';
   x: number;
   y: number;
   w: number;
@@ -75,6 +75,57 @@ interface TextSpec {
   source?: DataSource;
   showUnit?: boolean;
 }
+
+interface ArcSpec {
+  cx: number; cy: number; r: number; width: number; color: number;
+  start: number; end: number; source: DataSource; rounded: boolean; aod: boolean;
+}
+
+interface BarSpec {
+  x: number; y: number; w: number; h: number; color: number;
+  radius: number; source: DataSource; aod: boolean;
+  // Segmented linear bars: geometry above is for segment 0; runtime.ts
+  // expands this into `segments` separate FILL_RECT widgets spaced `gap`
+  // apart, since Zepp OS has no native multi-block fill widget.
+  segments?: number; gap?: number;
+}
+
+interface TextImgSpec {
+  x: number; y: number; w: number; h: number; hSpace: number;
+  fontArray: string[]; negImage: string; unitEn: string; imperialUnitEn: string;
+  aod: boolean;
+}
+
+interface WeatherSpec {
+  x: number; y: number; dir: string; aod: boolean;
+}
+
+interface PointerSpec {
+  hand: HandKind; path: string; cx: number; cy: number; px: number; py: number; aod: boolean;
+}
+
+interface RotatorSpec {
+  source: 'weekday' | 'monthday' | 'battery';
+  path: string; cx: number; cy: number; px: number; py: number; offset: number; aod: boolean;
+  /** Rotate counterclockwise as the value grows (CCW dial artwork) */
+  reverse?: boolean;
+}
+
+/**
+ * One ordered stack of layers per mode, each either a flattened background
+ * image or a native widget spec — created in exactly this order at runtime
+ * so Zepp OS's creation-order-is-z-order stacking matches the design's own
+ * element order (see buildModeLayers).
+ */
+type LayerSpec =
+  | ({ kind: 'bg'; path: string; aod: boolean })
+  | ({ kind: 'arc' } & ArcSpec)
+  | ({ kind: 'bar' } & BarSpec)
+  | ({ kind: 'text' } & TextSpec)
+  | ({ kind: 'textImg' } & TextImgSpec)
+  | ({ kind: 'weather' } & WeatherSpec)
+  | ({ kind: 'pointer' } & PointerSpec)
+  | ({ kind: 'rotator' } & RotatorSpec);
 
 /** '#rrggbb' / '#rgb' / 'rgb(a)(...)' → 0xRRGGBB (alpha dropped) */
 function cssToZeppColor(css: string): number {
@@ -110,29 +161,30 @@ const producesLiveWidget = (el: WatchElement): boolean =>
   !isBaked(el) || el.type === 'progressBar' || el.type === 'complication';
 
 /**
- * Zepp OS only has two effective layers around a live widget: the single
- * flattened background image (bottom) and every native widget it creates
- * (arcs/bars/texts/weather/hands), which always draws above that image. A
- * baked element placed above a progress bar/complication/live text/hand in
- * the editor's layer stack would otherwise get flattened into that same
- * bottom image and be covered by the live widget's on-top draw. Elements
- * that come after the first live-producing element are pulled into a
- * separate overlay image instead, composited above every live widget at the
- * end of build() — see runtime.ts.
+ * Every visible native widget (arc/bar/text/weather/hand) draws above
+ * whatever image was created before it — Zepp OS has no other z-order
+ * control. So instead of one flat background + one shared overlay (which
+ * could only cut the design's layer stack once), each *run* of consecutive
+ * baked-only elements becomes its own image, interleaved with the live
+ * widgets in exactly the design's element order — see buildModeLayers below.
+ * This pure counter mirrors that segmenting logic (without rendering
+ * anything) purely so the progress bar knows the real step count upfront.
  */
-function splitBaked(elements: WatchElement[]): { base: WatchElement[]; overlay: WatchElement[] } {
-  const base: WatchElement[] = [];
-  const overlay: WatchElement[] = [];
-  let seenLive = false;
+function countBakeSegments(elements: WatchElement[]): number {
+  let count = 0;
+  let hasContent = false;
   for (const el of elements) {
+    if (!el.visible) continue;
     if (producesLiveWidget(el)) {
-      if (isBaked(el)) base.push(el);
-      seenLive = true;
+      if (isBaked(el)) hasContent = true;
+      if (hasContent || count === 0) count++;
+      hasContent = false;
       continue;
     }
-    (seenLive ? overlay : base).push(el);
+    hasContent = true;
   }
-  return { base, overlay };
+  if (hasContent || count === 0) count++;
+  return count;
 }
 
 function complicationSource(kind: ComplicationElement['kind']): DataSource {
@@ -167,15 +219,11 @@ export async function generateZeppProject(
   };
 
   /* --------------------- total step count, for progress ------------------ */
-  // Computed up front (reusing the same splits/filters the real work below
-  // uses) so onProgress can report a real fraction instead of just a label.
-  const { base: baseNormal, overlay: overlayNormal } = splitBaked(project.normal);
-  const hasOverlay = overlayNormal.length > 0;
+  // Computed up front (reusing the same filters the real work below uses)
+  // so onProgress can report a real fraction instead of just a label.
   const hasAod = project.aod.length > 0;
-  const { base: baseAod, overlay: overlayAod } = hasAod
-    ? splitBaked(project.aod)
-    : { base: [], overlay: [] };
-  const hasAodOverlay = hasAod && overlayAod.length > 0;
+  const bakeSegmentCount =
+    countBakeSegments(project.normal) + (hasAod ? countBakeSegments(project.aod) : 0);
   const handCount =
     project.normal.filter((el) => isHandLike(el) && el.visible).length +
     project.aod.filter((el) => isHandLike(el) && el.visible).length;
@@ -188,10 +236,7 @@ export async function generateZeppProject(
     (el) => el.visible && el.type === 'number' && el.source === 'weather' && el.nativeWeather,
   ).length;
   const totalSteps =
-    1 + // background
-    (hasOverlay ? 1 : 0) +
-    (hasAod ? 1 : 0) +
-    (hasAodOverlay ? 1 : 0) +
+    bakeSegmentCount +
     1 + // preview icon
     handCount +
     weatherIconCount +
@@ -201,310 +246,14 @@ export async function generateZeppProject(
   let stepIndex = 0;
   const step = (label: string) => onProgress(label, ++stepIndex, totalSteps);
 
-  /* ------------------------- static backgrounds ------------------------- */
-  step('Rendering background');
-  files[`${assetsDir}/bg.png`] = await renderNodeToPng(
-    <WatchfaceSVG
-      device={device}
-      elements={baseNormal}
-      background={project.backgroundColor}
-      data={previewData}
-      width={device.width}
-      staticOnly
-    />,
-    device.width,
-    device.height,
-  );
-  if (hasOverlay) {
-    step('Rendering overlay');
-    files[`${assetsDir}/overlay.png`] = await renderNodeToPng(
-      <WatchfaceSVG
-        device={device}
-        elements={overlayNormal}
-        background="transparent"
-        data={previewData}
-        width={device.width}
-        staticOnly
-      />,
-      device.width,
-      device.height,
-    );
-  }
-
-  if (hasAod) {
-    step('Rendering AOD background');
-    files[`${assetsDir}/aod-bg.png`] = await renderNodeToPng(
-      <WatchfaceSVG
-        device={device}
-        elements={baseAod}
-        background={project.aodBackgroundColor}
-        data={previewData}
-        width={device.width}
-        staticOnly
-      />,
-      device.width,
-      device.height,
-    );
-    if (hasAodOverlay) {
-      step('Rendering AOD overlay');
-      files[`${assetsDir}/aod-overlay.png`] = await renderNodeToPng(
-        <WatchfaceSVG
-          device={device}
-          elements={overlayAod}
-          background="transparent"
-          data={previewData}
-          width={device.width}
-          staticOnly
-        />,
-        device.width,
-        device.height,
-      );
-    }
-  }
-
-  /* --------------------- shadow export-limitation warnings -------------- */
-  // Progress bars/complications bake their static chrome (track, ring,
-  // label) with the shadow intact, but their live-updating fill/value is a
-  // separate native widget with no shadow support. Live digitalTime/number
-  // text (not rotating, so not baked at all — see renderRotatingElement
-  // below) has no static image behind it whatsoever.
-  for (const el of [...project.normal, ...project.aod]) {
-    if (!el.shadows?.length) continue;
-    if (hasPartialShadowSupport(el)) {
-      warnings.push(
-        `"${el.name}" has a shadow set, but only its static chrome (track/ring/label) can show it — Zepp OS renders its live-updating fill/value as a native widget with no shadow support.`,
-      );
-    } else if (!supportsShadow(el)) {
-      warnings.push(
-        `"${el.name}" has a shadow set, but it's a fully live Zepp OS text widget with no static image behind it — the shadow won't appear on the device.`,
-      );
-    }
-  }
-
-  /* ---------------------- flip export-limitation warnings ---------------- */
-  // Same underlying constraint as shadows above: only baked pixels can
-  // reflect a flip. Hands/rotators and baked live-weather icons are baked
-  // per-element (see renderRotatingElement / the weather-icon loop) and
-  // flip fully there; progress bars/complications only mirror their static
-  // chrome; fully-live text has no baked image to flip at all.
-  for (const el of [...project.normal, ...project.aod]) {
-    if (!el.flipX && !el.flipY) continue;
-    if (hasPartialShadowSupport(el)) {
-      warnings.push(
-        `"${el.name}" is flipped, but only its static chrome (track/ring/label) mirrors — Zepp OS renders its live-updating fill/value as a native widget with no flip support.`,
-      );
-    } else if (!supportsShadow(el)) {
-      warnings.push(
-        `"${el.name}" is flipped, but it's a fully live Zepp OS text widget with no image behind it — the flip has no effect on the device.`,
-      );
-    }
-  }
-
-  /* -------------------- gradient export-limitation warnings -------------- */
-  // Same underlying constraint as shadows/flip above: only baked pixels can
-  // show a gradient. Native TEXT/FILL_RECT/ARC_PROGRESS widgets only accept
-  // a solid color, so a live element's gradient falls back to its first stop.
-  for (const el of [...project.normal, ...project.aod]) {
-    const hasGradient = Object.values(el).some(
-      (v) => typeof v === 'string' && isGradientValue(v),
-    );
-    if (!hasGradient) continue;
-    if (hasPartialShadowSupport(el)) {
-      warnings.push(
-        `"${el.name}" uses a gradient, but only its static chrome (track/ring/label) can show it — Zepp OS renders its live-updating fill/value as a native widget with solid color only.`,
-      );
-    } else if (!supportsShadow(el)) {
-      warnings.push(
-        `"${el.name}" uses a gradient, but it's a fully live Zepp OS text widget with no image behind it — the device shows a solid fallback color instead.`,
-      );
-    }
-  }
-
-  /* ------------------------------- preview ------------------------------ */
-  step('Rendering preview icon');
-  files[`${assetsDir}/icon.png`] = await renderNodeToPng(
-    <WatchfaceSVG
-      device={device}
-      elements={project.normal}
-      background={project.backgroundColor}
-      data={previewData}
-      width={240}
-    />,
-    240,
-    Math.round((240 * device.height) / device.width),
-  );
-
-  /* ---------------------------- rotating elements ------------------------ */
-  // Hour/minute/second sources use Zepp's native TIME_POINTER (efficient,
-  // built-in clock binding). weekday/battery sources have no native widget,
-  // so they render as a plain rotating IMG whose angle the runtime updates
-  // periodically (see runtime.ts's `rotators`).
-  const pointers: {
-    kind: HandKind;
-    path: string;
-    cx: number;
-    cy: number;
-    px: number;
-    py: number;
-    aod: boolean;
-  }[] = [];
-  const rotators: {
-    source: 'weekday' | 'battery';
-    path: string;
-    cx: number;
-    cy: number;
-    px: number;
-    py: number;
-    offset: number;
-    aod: boolean;
-  }[] = [];
-
-  const renderRotatingElement = async (el: WatchElement, aod: boolean, index: number) => {
-    const source = el.type === 'hand' ? el.hand : el.rotateWith;
-    if (!source) return;
-    if (el.type === 'digitalTime' || el.type === 'number') {
-      warnings.push(
-        `"${el.name}" rotates, but Zepp OS text widgets can't rotate and stay live at the same time — it's baked as a static snapshot showing the preview value instead.`,
-      );
-    } else if (el.type === 'weatherIcon') {
-      warnings.push(
-        `"${el.name}" rotates, but can't also keep updating its live weather icon — baked showing the preview condition.`,
-      );
-    }
-    const margin = Math.ceil(shadowFilterMargin(el.shadows));
-    const w = Math.max(2, Math.round(el.width)) + margin * 2;
-    const h = Math.max(2, Math.round(el.height)) + margin * 2;
-    step(`Rendering ${source} rotator`);
-    const flip =
-      el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
-    const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
-    const png = await renderNodeToPng(
-      <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
-        <g
-          transform={`translate(${w / 2} ${h / 2})${flip}`}
-          opacity={el.opacity}
-          filter={el.shadows?.length ? 'url(#rot-shadow)' : undefined}
-        >
-          {(el.shadows?.length || gradientDefs.length > 0) && (
-            <defs>
-              {el.shadows?.length ? <ShadowDefs id="rot-shadow" shadows={el.shadows} /> : null}
-              {gradientDefs}
-            </defs>
-          )}
-          <ElementRenderer el={resolvedEl} data={previewData} />
-        </g>
-      </svg>,
-      w,
-      h,
-    );
-    const name = `hands/${aod ? 'aod-' : ''}${source}-${index}.png`;
-    files[`${assetsDir}/${name}`] = png;
-    const world = resolvePivot(el, aod ? project.aod : project.normal);
-    const cx = Math.round(world.x);
-    const cy = Math.round(world.y);
-    const px = Math.round(w / 2 + (world.x - el.x));
-    const py = Math.round(h / 2 + (world.y - el.y));
-
-    if (source === 'hour' || source === 'minute' || source === 'second') {
-      if (el.rotation !== 0) {
-        warnings.push(
-          `"${el.name}" has a manual rotation of ${el.rotation}° — Zepp OS pointers ignore it (time drives the angle).`,
-        );
-      }
-      pointers.push({ kind: source, path: name, cx, cy, px, py, aod });
-    } else {
-      rotators.push({ source, path: name, cx, cy, px, py, offset: el.rotation, aod });
-    }
-  };
-
+  /* ------------------- interleaved layers (bake + live) ------------------ */
+  // Builds one ordered layer list per mode: consecutive baked-only elements
+  // become a flattened image, and every live-producing element becomes its
+  // own widget spec — interleaved in exactly the design's element order, so
+  // Zepp OS's creation-order-is-z-order stacking matches the layer stack.
   let handIndex = 0;
-  for (const el of project.normal.filter(isHandLike)) {
-    if (!el.visible) continue;
-    await renderRotatingElement(el, false, handIndex++);
-  }
-  for (const el of project.aod.filter(isHandLike)) {
-    if (!el.visible) continue;
-    await renderRotatingElement(el, true, handIndex++);
-  }
-
-  /* -------------------------- live weather icons ------------------------ */
-  const weathers: { x: number; y: number; dir: string; aod: boolean }[] = [];
-  for (let i = 0; i < liveWeatherEls.length; i++) {
-    const { el, aod } = liveWeatherEls[i];
-    if (el.type !== 'weatherIcon' || !el.visible) continue;
-    step('Rendering weather icons');
-    const dir = `weather-${i}`;
-    const margin = Math.ceil(shadowFilterMargin(el.shadows));
-    const w = Math.round(el.width) + margin * 2;
-    const h = Math.round(el.height) + margin * 2;
-    const flip =
-      el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
-    const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
-    for (const cond of WEATHER_CONDITIONS) {
-      files[`${assetsDir}/${dir}/${cond.value}.png`] = await renderNodeToPng(
-        <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
-          <g
-            transform={`translate(${w / 2} ${h / 2})${flip}`}
-            opacity={el.opacity}
-            filter={el.shadows?.length ? 'url(#weather-shadow)' : undefined}
-          >
-            {(el.shadows?.length || gradientDefs.length > 0) && (
-              <defs>
-                {el.shadows?.length ? <ShadowDefs id="weather-shadow" shadows={el.shadows} /> : null}
-                {gradientDefs}
-              </defs>
-            )}
-            <ElementRenderer
-              el={{ ...resolvedEl, condition: cond.value as never }}
-              data={previewData}
-            />
-          </g>
-        </svg>,
-        w,
-        h,
-      );
-    }
-    weathers.push({
-      x: Math.round(el.x - w / 2),
-      y: Math.round(el.y - h / 2),
-      dir,
-      aod,
-    });
-  }
-
-  /* -------------------------------- fonts ------------------------------- */
-  for (const font of project.fonts ?? []) {
-    files[`${assetsDir}/fonts/${slugify(font.family)}.ttf`] = dataUrlToBytes(font.src);
-  }
-
-  /* ----------------------------- widget specs --------------------------- */
-  const texts: TextSpec[] = [];
-  const arcs: {
-    cx: number; cy: number; r: number; width: number; color: number;
-    start: number; end: number; source: DataSource; rounded: boolean; aod: boolean;
-  }[] = [];
-  const bars: {
-    x: number; y: number; w: number; h: number; color: number;
-    radius: number; source: DataSource; aod: boolean;
-    // Segmented linear bars: geometry above is for segment 0; runtime.ts
-    // expands this into `segments` separate FILL_RECT widgets spaced `gap`
-    // apart, since Zepp OS has no native multi-block fill widget.
-    segments?: number; gap?: number;
-  }[] = [];
-  // TEXT_IMG widgets, used only for the opt-in "live device temperature"
-  // path — bound natively to the OS's own current-weather data type, with
-  // no polling code needed (see runtime.ts). fontArray is a digit-sprite
-  // set (0-9) baked from the element's own font/color, since TEXT_IMG has
-  // no system-font text mode of its own.
-  const textImgs: {
-    x: number; y: number; w: number; h: number; hSpace: number;
-    fontArray: string[]; negImage: string; unitEn: string; imperialUnitEn: string;
-    aod: boolean;
-  }[] = [];
   let textImgIndex = 0;
-
-  // Google Fonts aren't TTF files we already have — the build server fetches
-  // the real font binary from Google before compiling (see server/index.js).
+  let weatherIndex = 0;
   const googleFonts = new Map<string, GoogleFontNeed>();
   const resolveFont = (family: string, weight = 400): string | undefined => {
     const uploaded = customFontPath(family);
@@ -518,13 +267,159 @@ export async function generateZeppProject(
     return need.path;
   };
 
-  const collect = async (elements: WatchElement[], aod: boolean) => {
+  const buildModeLayers = async (
+    elements: WatchElement[],
+    aod: boolean,
+    bgColor: string,
+  ): Promise<LayerSpec[]> => {
+    const layers: LayerSpec[] = [];
+    let segment: WatchElement[] = [];
+    let segIndex = 0;
+
+    const flushSegment = async (allowEmpty: boolean) => {
+      if (segment.length === 0 && !allowEmpty) return;
+      const isFirst = segIndex === 0;
+      step(
+        isFirst
+          ? aod
+            ? 'Rendering AOD background'
+            : 'Rendering background'
+          : aod
+            ? 'Rendering AOD overlay'
+            : 'Rendering overlay',
+      );
+      const png = await renderNodeToPng(
+        <WatchfaceSVG
+          device={device}
+          elements={segment}
+          background={isFirst ? bgColor : 'transparent'}
+          data={previewData}
+          width={device.width}
+          staticOnly
+        />,
+        device.width,
+        device.height,
+      );
+      const name = `${aod ? 'aod-' : ''}bg-${segIndex}.png`;
+      files[`${assetsDir}/${name}`] = png;
+      layers.push({ kind: 'bg', path: name, aod });
+      segIndex++;
+      segment = [];
+    };
+
     for (const el of elements) {
       if (!el.visible) continue;
+
+      if (isHandLike(el)) {
+        if (el.type === 'digitalTime' || el.type === 'number') {
+          warnings.push(
+            `"${el.name}" rotates, but Zepp OS text widgets can't rotate and stay live at the same time — it's baked as a static snapshot showing the preview value instead.`,
+          );
+        } else if (el.type === 'weatherIcon') {
+          warnings.push(
+            `"${el.name}" rotates, but can't also keep updating its live weather icon — baked showing the preview condition.`,
+          );
+        }
+        await flushSegment(segIndex === 0);
+        const source = el.type === 'hand' ? el.hand : el.rotateWith;
+        if (!source) continue;
+        const shadows = effectiveShadows(el);
+        const margin = Math.ceil(shadowFilterMargin(shadows));
+        const w = Math.max(2, Math.round(el.width)) + margin * 2;
+        const h = Math.max(2, Math.round(el.height)) + margin * 2;
+        step(`Rendering ${source} rotator`);
+        const flip = el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
+        const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
+        const png = await renderNodeToPng(
+          <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
+            <g
+              transform={`translate(${w / 2} ${h / 2})${flip}`}
+              opacity={el.opacity}
+              filter={shadows ? 'url(#rot-shadow)' : undefined}
+            >
+              {(shadows || gradientDefs.length > 0) && (
+                <defs>
+                  {shadows ? <ShadowDefs id="rot-shadow" shadows={shadows} /> : null}
+                  {gradientDefs}
+                </defs>
+              )}
+              <ElementRenderer el={resolvedEl} data={previewData} />
+            </g>
+          </svg>,
+          w,
+          h,
+        );
+        const index = handIndex++;
+        const name = `hands/${aod ? 'aod-' : ''}${source}-${index}.png`;
+        files[`${assetsDir}/${name}`] = png;
+        const world = resolvePivot(el, elements);
+        const cx = Math.round(world.x);
+        const cy = Math.round(world.y);
+        const px = Math.round(w / 2 + (world.x - el.x));
+        const py = Math.round(h / 2 + (world.y - el.y));
+        if (source === 'hour' || source === 'minute' || source === 'second') {
+          if (el.rotation !== 0) {
+            warnings.push(
+              `"${el.name}" has a manual rotation of ${el.rotation}° — Zepp OS pointers ignore it (time drives the angle).`,
+            );
+          }
+          layers.push({ kind: 'pointer', hand: source, path: name, cx, cy, px, py, aod });
+        } else {
+          layers.push({
+            kind: 'rotator', source, path: name, cx, cy, px, py, offset: el.rotation, aod,
+            reverse: el.rotateReverse || undefined,
+          });
+        }
+        continue;
+      }
+
+      if (isLiveWeather(el) && el.type === 'weatherIcon') {
+        await flushSegment(segIndex === 0);
+        step('Rendering weather icons');
+        const dir = `weather-${weatherIndex++}`;
+        const shadows = effectiveShadows(el);
+        const margin = Math.ceil(shadowFilterMargin(shadows));
+        const w = Math.round(el.width) + margin * 2;
+        const h = Math.round(el.height) + margin * 2;
+        const flip = el.flipX || el.flipY ? ` scale(${el.flipX ? -1 : 1} ${el.flipY ? -1 : 1})` : '';
+        const { el: resolvedEl, defs: gradientDefs } = resolveElementGradients(el);
+        for (const cond of WEATHER_CONDITIONS) {
+          files[`${assetsDir}/${dir}/${cond.value}.png`] = await renderNodeToPng(
+            <svg viewBox={`0 0 ${w} ${h}`} width={w} height={h} xmlns="http://www.w3.org/2000/svg">
+              <g
+                transform={`translate(${w / 2} ${h / 2})${flip}`}
+                opacity={el.opacity}
+                filter={shadows ? 'url(#weather-shadow)' : undefined}
+              >
+                {(shadows || gradientDefs.length > 0) && (
+                  <defs>
+                    {shadows ? <ShadowDefs id="weather-shadow" shadows={shadows} /> : null}
+                    {gradientDefs}
+                  </defs>
+                )}
+                <ElementRenderer el={{ ...resolvedEl, condition: cond.value as never }} data={previewData} />
+              </g>
+            </svg>,
+            w,
+            h,
+          );
+        }
+        layers.push({
+          kind: 'weather',
+          x: Math.round(el.x - w / 2),
+          y: Math.round(el.y - h / 2),
+          dir,
+          aod,
+        });
+        continue;
+      }
+
       if (el.type === 'digitalTime') {
+        await flushSegment(segIndex === 0);
         const size = Math.round(el.height * FONT_HEIGHT_RATIO);
-        texts.push({
-          kind: 'time',
+        layers.push({
+          kind: 'text',
+          textKind: 'time',
           x: Math.round(el.x - el.width / 2),
           y: Math.round(el.y - el.height / 2),
           w: Math.round(el.width),
@@ -540,12 +435,19 @@ export async function generateZeppProject(
         if (el.rotation !== 0) {
           warnings.push(`"${el.name}" rotation is ignored — Zepp OS text widgets can't rotate.`);
         }
-      } else if (el.type === 'number' && el.source === 'weather' && el.nativeWeather) {
+        continue;
+      }
+
+      if (el.type === 'number' && el.source === 'weather' && el.nativeWeather) {
+        await flushSegment(segIndex === 0);
         step('Rendering temperature digits');
         // Per-glyph sprite box (one digit character), not the overall widget
         // box below — TEXT_IMG lays glyphs out itself from these.
         const glyphH = Math.round(el.height);
-        const glyphW = Math.round(el.height * 0.62);
+        // Tight enough to avoid noticeable dead space around most fonts'
+        // digit glyphs (which are usually narrower than this), so adjacent
+        // digits don't render with a big gap between them.
+        const glyphW = Math.round(el.height * 0.52);
         const fontSize = Math.round(glyphH * FONT_HEIGHT_RATIO);
         const idx = textImgIndex++;
         const renderGlyph = (ch: string) =>
@@ -558,21 +460,27 @@ export async function generateZeppProject(
         }
         const negName = `fontimg/${idx}/neg.png`;
         files[`${assetsDir}/${negName}`] = await renderGlyph('-');
-        textImgs.push({
+        layers.push({
+          kind: 'textImg',
           x: Math.round(el.x - el.width / 2),
           y: Math.round(el.y - el.height / 2),
           w: Math.round(el.width),
           h: Math.round(el.height),
-          hSpace: Math.round(glyphW * 0.06),
+          hSpace: Math.round(glyphW * 0.02),
           fontArray,
           negImage: negName,
           unitEn: '°C',
           imperialUnitEn: '°F',
           aod,
         });
-      } else if (el.type === 'number') {
-        texts.push({
-          kind: 'source',
+        continue;
+      }
+
+      if (el.type === 'number') {
+        await flushSegment(segIndex === 0);
+        layers.push({
+          kind: 'text',
+          textKind: 'source',
           x: Math.round(el.x - el.width / 2),
           y: Math.round(el.y - el.height / 2),
           w: Math.round(el.width),
@@ -587,7 +495,12 @@ export async function generateZeppProject(
         if (el.rotation !== 0) {
           warnings.push(`"${el.name}" rotation is ignored — Zepp OS text widgets can't rotate.`);
         }
-      } else if (el.type === 'complication') {
+        continue;
+      }
+
+      if (el.type === 'complication') {
+        if (isBaked(el)) segment.push(el);
+        await flushSegment(segIndex === 0);
         const s = Math.min(el.width, el.height);
         const valueColor = cssToZeppColor(el.valueColor ?? el.textColor);
         const valueFont = resolveFont(el.valueFont ?? el.fontFamily);
@@ -596,8 +509,9 @@ export async function generateZeppProject(
           const h = s * 0.92;
           const headerH = h * 0.32;
           const labelScale = el.labelScale ?? el.textScale ?? 1;
-          texts.push({
-            kind: 'source',
+          layers.push({
+            kind: 'text',
+            textKind: 'source',
             source: 'dayName',
             x: Math.round(el.x - el.width / 2 + (el.labelDx ?? 0)),
             y: Math.round(el.y - h / 2 + (el.labelDy ?? 0)),
@@ -608,8 +522,9 @@ export async function generateZeppProject(
             font: resolveFont(el.labelFont ?? el.fontFamily),
             aod,
           });
-          texts.push({
-            kind: 'source',
+          layers.push({
+            kind: 'text',
+            textKind: 'source',
             source: 'dayNumber',
             x: Math.round(el.x - el.width / 2 + (el.valueDx ?? 0)),
             y: Math.round(el.y - h / 2 + headerH + (el.valueDy ?? 0)),
@@ -622,8 +537,9 @@ export async function generateZeppProject(
           });
         } else {
           const valueSize = Math.round(s * 0.24 * valueScale);
-          texts.push({
-            kind: 'source',
+          layers.push({
+            kind: 'text',
+            textKind: 'source',
             source: complicationSource(el.kind),
             x: Math.round(el.x - el.width / 2 + (el.valueDx ?? 0)),
             y: Math.round(el.y + s * 0.035 + (el.valueDy ?? 0) - valueSize * 0.7),
@@ -636,7 +552,8 @@ export async function generateZeppProject(
           });
           if (el.showRing) {
             const ringW = Math.max(2, s * 0.055);
-            arcs.push({
+            layers.push({
+              kind: 'arc',
               cx: Math.round(el.x),
               cy: Math.round(el.y),
               r: Math.round(s / 2 - ringW / 2 - 1),
@@ -651,10 +568,16 @@ export async function generateZeppProject(
             });
           }
         }
-      } else if (el.type === 'progressBar') {
+        continue;
+      }
+
+      if (el.type === 'progressBar') {
+        if (isBaked(el)) segment.push(el);
+        await flushSegment(segIndex === 0);
         if (el.variant === 'circular') {
           const r = Math.min(el.width, el.height) / 2 - el.thickness / 2;
-          arcs.push({
+          layers.push({
+            kind: 'arc',
             cx: Math.round(el.x),
             cy: Math.round(el.y),
             r: Math.round(r),
@@ -669,8 +592,9 @@ export async function generateZeppProject(
           });
           if (el.showValue) {
             const size = Math.round(r * 0.42 * (el.textScale ?? 1));
-            texts.push({
-              kind: 'source',
+            layers.push({
+              kind: 'text',
+              textKind: 'source',
               source: el.source,
               x: Math.round(el.x - el.width / 2),
               y: Math.round(el.y - size * 0.7),
@@ -690,7 +614,8 @@ export async function generateZeppProject(
             const gap = el.segmentGap ?? 4;
             const segW = Math.max(1, (el.width - gap * (n - 1)) / n);
             const segRx = Math.min(radius, segW / 2, t / 2);
-            bars.push({
+            layers.push({
+              kind: 'bar',
               x: Math.round(el.x - el.width / 2),
               y: Math.round(el.y - t / 2),
               w: Math.round(segW),
@@ -708,7 +633,8 @@ export async function generateZeppProject(
               );
             }
           } else {
-            bars.push({
+            layers.push({
+              kind: 'bar',
               x: Math.round(el.x - el.width / 2),
               y: Math.round(el.y - t / 2),
               w: Math.round(el.width),
@@ -723,12 +649,78 @@ export async function generateZeppProject(
             warnings.push(`"${el.name}" rotation is ignored — linear bars export axis-aligned.`);
           }
         }
+        continue;
       }
+
+      // Anything else is fully baked (icon, text, tickMarks, shape, image).
+      segment.push(el);
     }
+
+    await flushSegment(segIndex === 0);
+    return layers;
   };
 
-  await collect(project.normal, false);
-  if (hasAod) await collect(project.aod, true);
+  const normalLayers = await buildModeLayers(project.normal, false, project.backgroundColor);
+  const aodLayers = hasAod
+    ? await buildModeLayers(project.aod, true, project.aodBackgroundColor)
+    : [];
+  const layers = [...normalLayers, ...aodLayers];
+
+  /* ------------------------------- preview ------------------------------ */
+  step('Rendering preview icon');
+  files[`${assetsDir}/icon.png`] = await renderNodeToPng(
+    <WatchfaceSVG
+      device={device}
+      elements={project.normal}
+      background={project.backgroundColor}
+      data={previewData}
+      width={240}
+    />,
+    240,
+    Math.round((240 * device.height) / device.width),
+  );
+
+  /* --------------------- shadow export-limitation warnings -------------- */
+  // Progress bars/complications bake their static chrome (track, ring,
+  // label) with the shadow intact, but their live-updating fill/value is a
+  // separate native widget with no shadow support. Live digitalTime/number
+  // text (not rotating, so not baked at all) has no static image behind it
+  // whatsoever.
+  for (const el of [...project.normal, ...project.aod]) {
+    if (!el.shadows?.length) continue;
+    if (hasPartialShadowSupport(el)) {
+      warnings.push(
+        `"${el.name}" has a shadow set, but only its static chrome (track/ring/label) can show it — Zepp OS renders its live-updating fill/value as a native widget with no shadow support.`,
+      );
+    } else if (!supportsShadow(el)) {
+      warnings.push(
+        `"${el.name}" has a shadow set, but it's a fully live Zepp OS text widget with no static image behind it — the shadow won't appear on the device.`,
+      );
+    }
+  }
+
+  /* ---------------------- flip export-limitation warnings ---------------- */
+  // Same underlying constraint as shadows above: only baked pixels can
+  // reflect a flip. Hands/rotators and baked live-weather icons are baked
+  // per-element and flip fully there; progress bars/complications only
+  // mirror their static chrome; fully-live text has no baked image at all.
+  for (const el of [...project.normal, ...project.aod]) {
+    if (!el.flipX && !el.flipY) continue;
+    if (hasPartialShadowSupport(el)) {
+      warnings.push(
+        `"${el.name}" is flipped, but only its static chrome (track/ring/label) mirrors — Zepp OS renders its live-updating fill/value as a native widget with no flip support.`,
+      );
+    } else if (!supportsShadow(el)) {
+      warnings.push(
+        `"${el.name}" is flipped, but it's a fully live Zepp OS text widget with no image behind it — the flip has no effect on the device.`,
+      );
+    }
+  }
+
+  /* -------------------------------- fonts ------------------------------- */
+  for (const font of project.fonts ?? []) {
+    files[`${assetsDir}/fonts/${slugify(font.family)}.ttf`] = dataUrlToBytes(font.src);
+  }
 
   /* ------------------------------ code files ---------------------------- */
   step('Generating code');
@@ -736,18 +728,10 @@ export async function generateZeppProject(
     width: device.width,
     height: device.height,
     hasAod,
-    hasOverlay,
-    hasAodOverlay,
     week: WEEKDAY_NAMES[language],
     months: MONTH_NAMES[language],
     stepsGoal: project.stepsGoal ?? 10000,
-    texts,
-    arcs,
-    bars,
-    weathers,
-    pointers,
-    rotators,
-    textImgs,
+    layers,
   };
   const indexJs = RUNTIME_TEMPLATE.replace('__SPEC__', JSON.stringify(spec, null, 2));
 

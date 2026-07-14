@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { ShadowSpec, WatchElement } from '@/types/watchface';
+import type { BevelSpec, ShadowSpec, WatchElement } from '@/types/watchface';
 import { uid } from '@/lib/uid';
 import { hasPartialShadowSupport } from '@/lib/elementClassification';
 import {
@@ -167,6 +167,138 @@ export function ShadowListField({
         <Svg d={UI_ICONS.plus} size={13} />
         Add shadow
       </button>
+    </FieldGroup>
+  );
+}
+
+const DEFAULT_BEVEL: BevelSpec = {
+  style: 'bevel',
+  depth: 3,
+  blur: 4,
+  angle: 315,
+  highlightColor: '#ffffff',
+  highlightOpacity: 0.6,
+  shadowColor: '#000000',
+  shadowOpacity: 0.5,
+};
+
+export function BevelField({
+  el,
+  patch,
+  commitPatch,
+  commit,
+}: {
+  el: WatchElement;
+  patch: (p: Record<string, unknown>) => void;
+  commitPatch: (p: Record<string, unknown>) => void;
+  commit: () => void;
+}) {
+  const bevel = el.bevel;
+
+  const update = (next: Partial<BevelSpec>, live: boolean) => {
+    const merged = { ...(bevel ?? DEFAULT_BEVEL), ...next };
+    if (live) patch({ bevel: merged });
+    else commitPatch({ bevel: merged });
+  };
+
+  return (
+    <FieldGroup title="Bevel & Emboss">
+      {!bevel ? (
+        <button
+          type="button"
+          className="btn btn--outline props__wide-btn"
+          onClick={() => commitPatch({ bevel: { ...DEFAULT_BEVEL } })}
+        >
+          <Svg d={UI_ICONS.plus} size={13} />
+          Add bevel
+        </button>
+      ) : (
+        <>
+          <SegmentField
+            label="Style"
+            value={bevel.style}
+            options={[
+              { value: 'bevel', label: 'Bevel' },
+              { value: 'emboss', label: 'Emboss' },
+            ]}
+            onChange={(v) => update({ style: v as BevelSpec['style'] }, false)}
+          />
+          <SliderField
+            label="Depth"
+            value={bevel.depth}
+            min={0.5}
+            max={20}
+            step={0.5}
+            onStart={commit}
+            onChange={(v) => update({ depth: v }, true)}
+            suffix="px"
+          />
+          <SliderField
+            label="Soften"
+            value={bevel.blur}
+            min={0}
+            max={30}
+            step={1}
+            onStart={commit}
+            onChange={(v) => update({ blur: v }, true)}
+            suffix="px"
+          />
+          <SliderField
+            label="Light angle"
+            value={bevel.angle}
+            min={0}
+            max={360}
+            step={5}
+            onStart={commit}
+            onChange={(v) => update({ angle: v }, true)}
+            suffix="°"
+          />
+          <ColorField
+            label="Highlight"
+            value={bevel.highlightColor}
+            onStart={commit}
+            onChange={(v) => update({ highlightColor: v }, true)}
+            allowGradient={false}
+          />
+          <SliderField
+            label="Highlight opacity"
+            value={bevel.highlightOpacity}
+            min={0}
+            max={1}
+            step={0.01}
+            onStart={commit}
+            onChange={(v) => update({ highlightOpacity: v }, true)}
+            displayScale={100}
+            suffix="%"
+          />
+          <ColorField
+            label="Shade"
+            value={bevel.shadowColor}
+            onStart={commit}
+            onChange={(v) => update({ shadowColor: v }, true)}
+            allowGradient={false}
+          />
+          <SliderField
+            label="Shade opacity"
+            value={bevel.shadowOpacity}
+            min={0}
+            max={1}
+            step={0.01}
+            onStart={commit}
+            onChange={(v) => update({ shadowOpacity: v }, true)}
+            displayScale={100}
+            suffix="%"
+          />
+          <button
+            type="button"
+            className="btn btn--outline props__wide-btn"
+            onClick={() => commitPatch({ bevel: undefined })}
+          >
+            <Svg d={UI_ICONS.trash} size={13} />
+            Remove bevel
+          </button>
+        </>
+      )}
     </FieldGroup>
   );
 }

@@ -23,6 +23,11 @@ export function rotationSourceAngle(source: RotationSource, data: LiveData): num
   if (source === 'battery') {
     return (Math.max(0, Math.min(100, data.battery)) / 100) * 360;
   }
+  // monthday: the 1st = 0°, one of 31 fixed positions — like a printed 1–31
+  // date ring, which can't adapt to shorter months either.
+  if (source === 'monthday') {
+    return (data.now.getDate() - 1) * (360 / 31);
+  }
   // weekday: Monday = 0°, one of 7 evenly-spaced positions, matching JS's
   // Sunday-first getDay() remapped to a Monday-first index.
   const mondayIndex = (data.now.getDay() + 6) % 7;

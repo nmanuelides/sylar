@@ -27,7 +27,7 @@ import {
 } from '@/lib/geometry';
 import { formatTime, handAngle, rotationSourceAngle, sourceValue } from '@/lib/time';
 import { DEFAULT_LANGUAGE, WEEKDAY_NAMES } from '@/lib/i18n';
-import { ShadowDefs, useShadowFilterId } from './shadows';
+import { ShadowDefs, effectiveShadows, useShadowFilterId } from './shadows';
 import { useResolvedElement } from './gradientDefs';
 
 /** Ratio between rendered font size and element box height for text elements */
@@ -285,6 +285,14 @@ function Hand({ el }: { el: HandElement }) {
 /* Text-like                                                           */
 /* ------------------------------------------------------------------ */
 
+// paintOrder puts the stroke behind the fill so outlined glyphs keep their
+// full fill weight instead of the stroke eating into it.
+function strokeProps(el: { strokeColor?: string; strokeWidth?: number }) {
+  return el.strokeColor && (el.strokeWidth ?? 0) > 0
+    ? { stroke: el.strokeColor, strokeWidth: el.strokeWidth, paintOrder: 'stroke' as const }
+    : {};
+}
+
 function DigitalTime({ el, data }: { el: DigitalTimeElement; data: LiveData }) {
   const { main, ampm } = formatTime(data.now, el.format);
   const fontSize = el.height * FONT_HEIGHT_RATIO;
@@ -297,6 +305,7 @@ function DigitalTime({ el, data }: { el: DigitalTimeElement; data: LiveData }) {
       fontWeight={el.fontWeight}
       fontSize={fontSize}
       letterSpacing={el.letterSpacing}
+      {...strokeProps(el)}
     >
       {main}
       {el.showAmPm && ampm && (
@@ -319,6 +328,7 @@ function NumberText({ el, data }: { el: NumberElement; data: LiveData }) {
       fontWeight={el.fontWeight}
       fontSize={el.height * FONT_HEIGHT_RATIO}
       letterSpacing={el.letterSpacing}
+      {...strokeProps(el)}
     >
       {info.value}
       {el.showUnit && info.unit}
@@ -336,6 +346,7 @@ function TextLabel({ el }: { el: TextElement }) {
       fontWeight={el.fontWeight}
       fontSize={el.height * FONT_HEIGHT_RATIO}
       letterSpacing={el.letterSpacing}
+      {...strokeProps(el)}
     >
       {el.uppercase ? el.text.toUpperCase() : el.text}
     </text>
@@ -347,12 +358,18 @@ function TextLabel({ el }: { el: TextElement }) {
 /* ------------------------------------------------------------------ */
 
 function Icon({ el }: { el: IconElement }) {
+  // The glyph is drawn inside a scale() transform, so divide the stroke width
+  // by that scale to keep the slider meaning on-canvas pixels.
+  const iconStroke = (scale: number) =>
+    el.strokeColor && (el.strokeWidth ?? 0) > 0
+      ? { stroke: el.strokeColor, strokeWidth: el.strokeWidth! / scale, paintOrder: 'stroke' as const }
+      : {};
   if (el.iconPath) {
     const gw = el.iconWidth ?? 512;
     const scale = Math.min(el.width / gw, el.height / 512);
     return (
       <g transform={`scale(${scale}) translate(${-gw / 2} -256)`}>
-        <path d={el.iconPath} fill={el.color} />
+        <path d={el.iconPath} fill={el.color} {...iconStroke(scale)} />
       </g>
     );
   }
@@ -361,7 +378,7 @@ function Icon({ el }: { el: IconElement }) {
   const path = ICONS[el.icon] ?? ICONS.star;
   return (
     <g transform={`scale(${s / 24}) translate(-12 -12)`}>
-      <path d={path} fill={el.color} />
+      <path d={path} fill={el.color} {...iconStroke(s / 24)} />
     </g>
   );
 }
@@ -502,7 +519,7 @@ function ProgressBar({
 /* Tick marks                                                          */
 /* ------------------------------------------------------------------ */
 
-function TickMarks({ el }: { el: TickMarksElement }) {
+function TickMarks({ el, data }: { el: TickMarksElement; data: LiveData }) {
   const r = Math.min(el.width, el.height) / 2;
   const showTicks = el.showTicks ?? true;
   const isRectLayout = el.layout === 'rect';
@@ -519,10 +536,10 @@ function TickMarks({ el }: { el: TickMarksElement }) {
     const major = el.majorEvery > 0 && i % el.majorEvery === 0;
     const len = major ? el.majorLength : el.length;
     const color = major ? el.majorColor : el.color;
-    const thickness = major ? el.thickness : Math.max(1, el.thickness * 0.6);
+    const thickness = major ? (el.majorThickness ?? el.thickness) : el.thickness;
     if (el.shape === 'dot') {
       const c = offsetAlongNormal(bp, -len / 2);
-      ticks.push(<circle key={i} cx={c.x} cy={c.y} r={thickness} fill={color} />);
+      ticks.push(<circle key={i} cx={c.x} cy={c.y} r={thickness} fill={color} {...strokeProps(el)} />);
     } else if (el.shape === 'rect') {
       const mid = offsetAlongNormal(bp, -len / 2);
       const radius = Math.min(el.cornerRadius ?? 0, thickness / 2, len / 2);
@@ -535,6 +552,7 @@ function TickMarks({ el }: { el: TickMarksElement }) {
             height={len}
             rx={radius}
             fill={color}
+            {...strokeProps(el)}
           />
         </g>,
       );
@@ -556,7 +574,18 @@ function TickMarks({ el }: { el: TickMarksElement }) {
   }
   const numbers: JSX.Element[] = [];
   if (el.showNumbers) {
-    const count = Math.max(1, Math.round(el.numberCount ?? 12));
+    const lang = data.language ?? DEFAULT_LANGUAGE;
+    // Monday-first / 1-first orderings match the weekday and monthday
+    // rotators' zero-at-top conventions, so a pointer lines up with the ring.
+    const dayLabels =
+      el.dayMode === 'weekday'
+        ? [1, 2, 3, 4, 5, 6, 0].map((d) => WEEKDAY_NAMES[lang][d])
+        : el.dayMode === 'monthday'
+          ? Array.from({ length: 31 }, (_, i) => String(i + 1))
+          : undefined;
+    const count = dayLabels
+      ? dayLabels.length
+      : Math.max(1, Math.round(el.numberCount ?? 12));
     const step = el.numberStep ?? 1;
     const fontSize = r * 0.16 * (el.numberScale ?? 1);
     // Without ticks the numerals hug the outer edge instead of sitting inside them
@@ -570,7 +599,7 @@ function TickMarks({ el }: { el: TickMarksElement }) {
             t,
           )
         : circleBoundaryPoint(Math.max(0, r - inset), t);
-    const labels = el.labels?.filter((s) => s.length > 0);
+    const labels = dayLabels ?? el.labels?.filter((s) => s.length > 0);
     for (let i = 0; i < count; i++) {
       const p = numberBoundaryAt(i / count);
       const value =
@@ -595,6 +624,7 @@ function TickMarks({ el }: { el: TickMarksElement }) {
           fontWeight={el.numberWeight ?? 600}
           fontSize={fontSize}
           transform={el.curveLabels ? `rotate(${rotation} ${p.x} ${p.y})` : undefined}
+          {...strokeProps(el)}
         >
           {value}
         </text>,
@@ -665,7 +695,7 @@ export function ElementRenderer({
     case 'progressBar':
       return <ProgressBar el={el} data={data} staticOnly={staticOnly} />;
     case 'tickMarks':
-      return <TickMarks el={el} />;
+      return <TickMarks el={el} data={data} />;
     case 'image':
       return <ImageEl el={el} />;
     case 'shape':
@@ -676,7 +706,12 @@ export function ElementRenderer({
 /** Live rotation for hands and any element with `rotateWith` set (0 for everything else). */
 export function elementTimeRotation(el: WatchElement, data: LiveData): number {
   if (el.type === 'hand') return handAngle(el.hand, data.now);
-  if (el.rotateWith) return rotationSourceAngle(el.rotateWith, data);
+  if (el.rotateWith) {
+    const angle = rotationSourceAngle(el.rotateWith, data);
+    const reversible =
+      el.rotateWith === 'weekday' || el.rotateWith === 'monthday' || el.rotateWith === 'battery';
+    return el.rotateReverse && reversible ? -angle : angle;
+  }
   return 0;
 }
 
@@ -699,7 +734,8 @@ export function ElementNode({
   const pivot = { x: world.x - el.x, y: world.y - el.y };
   // Filter + rotation share this <g>, so a rotated element's shadow rotates
   // with it — same as CSS `filter: drop-shadow` under a `transform`.
-  const filterId = useShadowFilterId(el.shadows);
+  const shadows = effectiveShadows(el);
+  const filterId = useShadowFilterId(shadows);
   const { el: resolvedEl, defs: gradientDefs } = useResolvedElement(el);
   // Flip is applied last (innermost) so it mirrors the element's own content
   // around its own center, independent of rotation/pivot — matches "flip the
@@ -714,7 +750,7 @@ export function ElementNode({
     >
       {(filterId || gradientDefs.length > 0) && (
         <defs>
-          {filterId && <ShadowDefs id={filterId} shadows={el.shadows!} />}
+          {filterId && <ShadowDefs id={filterId} shadows={shadows!} />}
           {gradientDefs}
         </defs>
       )}

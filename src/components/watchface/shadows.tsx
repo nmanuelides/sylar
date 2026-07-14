@@ -1,5 +1,44 @@
 import { Fragment, useId } from 'react';
-import type { ShadowSpec } from '@/types/watchface';
+import type { BevelSpec, ShadowSpec } from '@/types/watchface';
+
+/**
+ * A bevel is two mirrored inner shadows: a light band on the edges facing the
+ * light and a dark band on the edges facing away. Emboss flips the pair so the
+ * shape reads as pressed in instead of raised.
+ */
+export function bevelShadows(bevel: BevelSpec | undefined): ShadowSpec[] {
+  if (!bevel) return [];
+  const rad = (bevel.angle * Math.PI) / 180;
+  // Light from `angle` (clockwise from top): offsetting an inner shadow by
+  // (-sin, cos)·depth puts its band on the lit edges; the mirror offset shades
+  // the opposite edges.
+  const flip = bevel.style === 'emboss' ? -1 : 1;
+  const dx = -Math.sin(rad) * bevel.depth * flip;
+  const dy = Math.cos(rad) * bevel.depth * flip;
+  const band = (id: string, sign: number, color: string, opacity: number): ShadowSpec => ({
+    id,
+    offsetX: dx * sign,
+    offsetY: dy * sign,
+    blur: bevel.blur,
+    spread: 0,
+    color,
+    opacity,
+    inner: true,
+  });
+  return [
+    band('bevel-shade', -1, bevel.shadowColor, bevel.shadowOpacity),
+    band('bevel-light', 1, bevel.highlightColor, bevel.highlightOpacity),
+  ];
+}
+
+/** An element's drop-shadows plus its bevel's synthesized inner shadows, or undefined when it has neither. */
+export function effectiveShadows(el: {
+  shadows?: ShadowSpec[];
+  bevel?: BevelSpec;
+}): ShadowSpec[] | undefined {
+  const combined = [...(el.shadows ?? []), ...bevelShadows(el.bevel)];
+  return combined.length > 0 ? combined : undefined;
+}
 
 /** Extra pixels needed on every side so a shadow isn't clipped by a tightly-sized canvas. */
 export function shadowFilterMargin(shadows: ShadowSpec[] | undefined): number {
@@ -19,13 +58,14 @@ export function useShadowFilterId(shadows: ShadowSpec[] | undefined): string | u
 /** One `<filter>` chaining every shadow for an element, outer and inner alike. */
 export function ShadowDefs({ id, shadows }: { id: string; shadows: ShadowSpec[] }) {
   return (
-    <filter id={id} x="-50%" y="-50%" width="200%" height="200%">
+    // sRGB keeps the SourceGraphic's gradients from being quantized through a
+    // linearRGB round-trip (the filter default), which shows up as banding.
+    <filter id={id} x="-50%" y="-50%" width="200%" height="200%" colorInterpolationFilters="sRGB">
       {shadows.map((s, i) => (s.inner ? innerShadowNodes(s, i) : outerShadowNodes(s, i)))}
       <feMerge>
-        {shadows.map((_, i) => (
-          <feMergeNode key={i} in={`shadow-${i}`} />
-        ))}
+        {shadows.map((s, i) => (s.inner ? null : <feMergeNode key={i} in={`shadow-${i}`} />))}
         <feMergeNode in="SourceGraphic" />
+        {shadows.map((s, i) => (s.inner ? <feMergeNode key={i} in={`shadow-${i}`} /> : null))}
       </feMerge>
     </filter>
   );

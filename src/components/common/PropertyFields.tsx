@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState, type ReactNode, type RefObject } from 'react';
+import { useEffect, useReducer, useRef, useState, type ReactNode, type RefObject } from 'react';
 import { ensureFontLoaded, FONT_CATEGORIES, FONTS } from '@/data/fonts';
 import { useEditor } from '@/store/editorStore';
 import { isValidColor, useColorHistory } from '@/store/colorHistoryStore';
@@ -67,11 +67,43 @@ export function FieldRow({ label, children }: { label: string; children: ReactNo
   );
 }
 
+// Collapse state lives at module level keyed by section title (not in
+// component state) so it survives switching layers — React may reuse a
+// FieldGroup instance for a *different* section in the same slot.
+const COLLAPSED_GROUPS_KEY = 'sylar.collapsedGroups';
+const collapsedGroups: Record<string, boolean> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem(COLLAPSED_GROUPS_KEY) ?? '{}');
+  } catch {
+    return {};
+  }
+})();
+
 export function FieldGroup({ title, children }: { title: string; children: ReactNode }) {
+  const [, forceRender] = useReducer((x: number) => x + 1, 0);
+  const collapsed = !!collapsedGroups[title];
+  const toggle = () => {
+    collapsedGroups[title] = !collapsed;
+    try {
+      localStorage.setItem(COLLAPSED_GROUPS_KEY, JSON.stringify(collapsedGroups));
+    } catch {
+      /* private-mode storage failures just lose persistence */
+    }
+    forceRender();
+  };
   return (
-    <section className="field-group">
-      <h3 className="field-group__title">{title}</h3>
-      {children}
+    <section className={`field-group${collapsed ? ' is-collapsed' : ''}`}>
+      <h3 className="field-group__title">
+        <button type="button" className="field-group__toggle" onClick={toggle}>
+          {title}
+          <Svg
+            d={UI_ICONS.chevronDown}
+            size={11}
+            className={`field-group__chevron${collapsed ? '' : ' is-open'}`}
+          />
+        </button>
+      </h3>
+      {!collapsed && children}
     </section>
   );
 }
@@ -236,6 +268,7 @@ export function ColorField({
   onStart,
   bindingKey,
   allowGradient = true,
+  allowNone = false,
 }: CommonProps & {
   value: string;
   onChange: (v: string) => void;
@@ -243,6 +276,8 @@ export function ColorField({
   bindingKey?: string;
   /** Set false for paints that can't take a gradient (e.g. an SVG feFlood shadow color). */
   allowGradient?: boolean;
+  /** Adds a "None" mode that sets the value to the SVG paint `'none'` (e.g. an unfilled stroked shape). */
+  allowNone?: boolean;
 }) {
   const [draft, setDraft] = useState<string | null>(null);
   useEffect(() => setDraft(null), [value]);
@@ -254,6 +289,7 @@ export function ColorField({
   const chips = [...favorites, ...recent].slice(0, 12);
   const gradientSpec = allowGradient ? decodeGradient(value) : null;
   const isGradient = gradientSpec !== null;
+  const isNone = allowNone && value === 'none';
 
   const theme = useEditor((s) => s.project.theme ?? []);
   const boundThemeId = useEditor((s) =>
@@ -271,30 +307,48 @@ export function ColorField({
   };
 
   const switchToSolid = () => {
-    if (!gradientSpec) return;
+    if (!gradientSpec && !isNone) return;
     onStart?.();
-    onChange(gradientFallbackColor(gradientSpec));
+    onChange(gradientSpec ? gradientFallbackColor(gradientSpec) : '#ffffff');
   };
   const switchToGradient = () => {
     if (gradientSpec) return;
     onStart?.();
-    onChange(encodeGradient(defaultGradient(isValidColor(value) ? value : '#4fc3ff')));
+    onChange(
+      encodeGradient(defaultGradient(!isNone && isValidColor(value) ? value : '#4fc3ff')),
+    );
+  };
+  const switchToNone = () => {
+    if (isNone) return;
+    onStart?.();
+    onChange('none');
   };
 
   return (
     <FieldRow label={label}>
       <div className="color-field">
-        {!isBound && allowGradient && (
+        {!isBound && (allowGradient || allowNone) && (
           <div className="color-field__mode segment-field">
-            <button type="button" className={!isGradient ? 'is-active' : ''} onClick={switchToSolid}>
+            {allowNone && (
+              <button type="button" className={isNone ? 'is-active' : ''} onClick={switchToNone}>
+                None
+              </button>
+            )}
+            <button
+              type="button"
+              className={!isGradient && !isNone ? 'is-active' : ''}
+              onClick={switchToSolid}
+            >
               Solid
             </button>
-            <button type="button" className={isGradient ? 'is-active' : ''} onClick={switchToGradient}>
-              Gradient
-            </button>
+            {allowGradient && (
+              <button type="button" className={isGradient ? 'is-active' : ''} onClick={switchToGradient}>
+                Gradient
+              </button>
+            )}
           </div>
         )}
-        {isGradient && gradientSpec ? (
+        {isNone ? null : isGradient && gradientSpec ? (
           <GradientEditor
             spec={gradientSpec}
             onStart={onStart}

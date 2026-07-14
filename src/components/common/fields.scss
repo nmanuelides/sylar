@@ -10,6 +10,35 @@
     color: $accent-bright;
     margin: 0 0 12px;
   }
+
+  &.is-collapsed &__title {
+    margin-bottom: 0;
+  }
+
+  &__toggle {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    width: 100%;
+    padding: 0;
+    background: none;
+    border: none;
+    font: inherit;
+    letter-spacing: inherit;
+    text-transform: inherit;
+    color: inherit;
+    cursor: pointer;
+  }
+
+  &__chevron {
+    opacity: 0.6;
+    transform: rotate(-90deg);
+    transition: transform 0.15s ease;
+
+    &.is-open {
+      transform: rotate(0deg);
+    }
+  }
 }
 
 .field-row {

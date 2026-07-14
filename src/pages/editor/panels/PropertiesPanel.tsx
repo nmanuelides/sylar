@@ -12,7 +12,7 @@ import { DEVICES, getDevice } from '@/data/devices';
 import { nearestWeight, weightsFor } from '@/data/fonts';
 import { WEATHER_CONDITIONS } from '@/data/icons';
 import { DATA_SOURCES } from '@/lib/time';
-import { hasPartialShadowSupport, supportsShadow } from '@/lib/elementClassification';
+import { hasPartialShadowSupport, supportsBevel, supportsShadow } from '@/lib/elementClassification';
 import { DEFAULT_LANGUAGE, LANGUAGES } from '@/lib/i18n';
 import { FONT_HEIGHT_RATIO } from '@/components/watchface/renderers';
 import {
@@ -29,7 +29,7 @@ import {
 } from '@/components/common/PropertyFields';
 import { IconPicker } from '@/components/common/IconPicker';
 import { Svg, UI_ICONS } from '@/components/common/Ui';
-import { ShadowListField } from './ShadowFields';
+import { BevelField, ShadowListField } from './ShadowFields';
 
 const ALIGN_BUTTONS: { kind: AlignKind; icon: string; title: string }[] = [
   { kind: 'left', icon: UI_ICONS.alignL, title: 'Align left' },
@@ -71,12 +71,14 @@ function FontFields({
     color: string;
     letterSpacing?: number;
     height?: number;
+    strokeColor?: string;
+    strokeWidth?: number;
   };
   elementId: string;
   patch: (p: Record<string, unknown>) => void;
   commitPatch: (p: Record<string, unknown>) => void;
   commit: () => void;
-  /** False for a fully-live Zepp OS text widget, which can only take a solid color. */
+  /** False for a fully-live Zepp OS text widget, which can only take a solid color — no gradient, no 'none' fill, no stroke. */
   allowGradient?: boolean;
 }) {
   const changeFamily = (family: string) => {
@@ -118,7 +120,31 @@ function FontFields({
         onChange={(v) => patch({ color: v })}
         bindingKey={elementBindingKey(elementId, 'color')}
         allowGradient={allowGradient}
+        allowNone={allowGradient}
       />
+      {allowGradient && (
+        <>
+          <NumberField
+            label="Stroke width"
+            value={el.strokeWidth ?? 0}
+            min={0}
+            max={20}
+            step={0.5}
+            suffix="px"
+            onStart={commit}
+            onChange={(v) => patch({ strokeWidth: v })}
+          />
+          {(el.strokeWidth ?? 0) > 0 && (
+            <ColorField
+              label="Stroke color"
+              value={el.strokeColor ?? '#000000'}
+              onStart={commit}
+              onChange={(v) => patch({ strokeColor: v })}
+              bindingKey={elementBindingKey(elementId, 'strokeColor')}
+            />
+          )}
+        </>
+      )}
       {el.letterSpacing !== undefined && (
         <SliderField
           label="Letter spacing"
@@ -257,9 +283,19 @@ function ElementProperties({ el }: { el: WatchElement }) {
               { value: 'minute', label: 'Minute' },
               { value: 'second', label: 'Second' },
               { value: 'weekday', label: 'Day of week' },
+              { value: 'monthday', label: 'Day of month' },
               { value: 'battery', label: 'Battery' },
             ]}
             onChange={(v) => commitPatch({ rotateWith: v === 'none' ? undefined : v })}
+          />
+        )}
+        {(el.rotateWith === 'weekday' ||
+          el.rotateWith === 'monthday' ||
+          el.rotateWith === 'battery') && (
+          <SwitchField
+            label="Reverse direction"
+            checked={el.rotateReverse ?? false}
+            onChange={(v) => commitPatch({ rotateReverse: v || undefined })}
           />
         )}
         {el.rotateWith && (
@@ -267,9 +303,11 @@ function ElementProperties({ el }: { el: WatchElement }) {
             Rotates continuously around its pivot point (Pivot X/Y above) to track{' '}
             {el.rotateWith === 'weekday'
               ? 'the current day of the week (7 evenly-spaced positions, Monday first)'
-              : el.rotateWith === 'battery'
-                ? 'battery level (0% = 0°, 100% = full turn)'
-                : `the ${el.rotateWith} hand angle`}
+              : el.rotateWith === 'monthday'
+                ? 'the current day of the month (31 evenly-spaced positions, the 1st at the top — like a printed date ring, it can’t adapt to shorter months)'
+                : el.rotateWith === 'battery'
+                  ? 'battery level (0% = 0°, 100% = full turn)'
+                  : `the ${el.rotateWith} hand angle`}
             . “Rotation” above fine-tunes the zero angle.
           </p>
         )}
@@ -282,6 +320,10 @@ function ElementProperties({ el }: { el: WatchElement }) {
           Shadows aren't available on this element — Zepp OS renders live-updating text as a bare
           native widget with no image behind it for a shadow to attach to.
         </p>
+      )}
+
+      {supportsBevel(el) && (
+        <BevelField el={el} patch={patch} commitPatch={commitPatch} commit={commit} />
       )}
 
       {el.type === 'complication' && (
@@ -475,8 +517,8 @@ function ElementProperties({ el }: { el: WatchElement }) {
           />
           {!supportsShadow(el) && (
             <p className="props__note">
-              Gradients aren't available here — Zepp OS renders live-updating text as a bare native
-              widget with a solid color only.
+              Gradients, outlines and “none” fill aren't available here — Zepp OS renders
+              live-updating text as a bare native widget with a solid color only.
             </p>
           )}
         </FieldGroup>
@@ -515,8 +557,8 @@ function ElementProperties({ el }: { el: WatchElement }) {
           />
           {!supportsShadow(el) && (
             <p className="props__note">
-              Gradients aren't available here — Zepp OS renders live-updating text as a bare native
-              widget with a solid color only.
+              Gradients, outlines and “none” fill aren't available here — Zepp OS renders
+              live-updating text as a bare native widget with a solid color only.
             </p>
           )}
         </FieldGroup>
@@ -554,7 +596,27 @@ function ElementProperties({ el }: { el: WatchElement }) {
             onStart={commit}
             onChange={(v) => patch({ color: v })}
             bindingKey={elementBindingKey(el.id, 'color')}
+            allowNone
           />
+          <NumberField
+            label="Stroke width"
+            value={el.strokeWidth ?? 0}
+            min={0}
+            max={40}
+            step={0.5}
+            suffix="px"
+            onStart={commit}
+            onChange={(v) => patch({ strokeWidth: v })}
+          />
+          {(el.strokeWidth ?? 0) > 0 && (
+            <ColorField
+              label="Stroke color"
+              value={el.strokeColor ?? '#000000'}
+              onStart={commit}
+              onChange={(v) => patch({ strokeColor: v })}
+              bindingKey={elementBindingKey(el.id, 'strokeColor')}
+            />
+          )}
           <IconPicker
             open={iconPickerOpen}
             onClose={() => setIconPickerOpen(false)}
@@ -803,7 +865,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                   label="Corner radius"
                   value={el.cornerRadius ?? 0}
                   min={0}
-                  max={Math.max(el.thickness, el.majorLength) / 2}
+                  max={Math.max(el.thickness, el.majorThickness ?? el.thickness, el.majorLength) / 2}
                   step={0.5}
                   onStart={commit}
                   onChange={(v) => patch({ cornerRadius: v })}
@@ -816,6 +878,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ color: v })}
                 bindingKey={elementBindingKey(el.id, 'color')}
+                allowNone={el.shape !== 'line'}
               />
               <ColorField
                 label="Major color"
@@ -823,6 +886,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ majorColor: v })}
                 bindingKey={elementBindingKey(el.id, 'majorColor')}
+                allowNone={el.shape !== 'line'}
               />
               <SliderField
                 label="Length"
@@ -848,6 +912,14 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ thickness: v })}
               />
+              <SliderField
+                label="Major thickness"
+                value={el.majorThickness ?? el.thickness}
+                min={1}
+                max={12}
+                onStart={commit}
+                onChange={(v) => patch({ majorThickness: v })}
+              />
             </>
           )}
           <SwitchField
@@ -857,39 +929,60 @@ function ElementProperties({ el }: { el: WatchElement }) {
           />
           {el.showNumbers && (
             <>
-              <NumberField
-                label="Count"
-                value={el.numberCount ?? 12}
-                min={1}
-                max={60}
-                onStart={commit}
-                onChange={(v) => patch({ numberCount: Math.round(v) })}
+              <SelectField
+                label="Text source"
+                value={el.dayMode ?? 'custom'}
+                options={[
+                  { value: 'custom', label: 'Numbers / custom' },
+                  { value: 'weekday', label: 'Day of week' },
+                  { value: 'monthday', label: 'Day of month' },
+                ]}
+                onChange={(v) => commitPatch({ dayMode: v === 'custom' ? undefined : v })}
               />
-              <FieldRow label="Custom text">
-                <textarea
-                  className="props__textarea"
-                  rows={4}
-                  placeholder={'Leave blank for 1, 2, 3…\nOr enter one label per line,\ne.g. Mon / Tue / Wed…'}
-                  value={(el.labels ?? []).join('\n')}
-                  onFocus={commit}
-                  onChange={(e) => patch({ labels: e.target.value.split('\n') })}
-                />
-              </FieldRow>
-              {!el.labels?.some((s) => s.length > 0) && (
+              {el.dayMode && (
+                <p className="props__note">
+                  {el.dayMode === 'weekday'
+                    ? 'Weekday names (7 positions, Monday at the top, in the watchface language) — lines up with a "Rotate as: Day of week" pointer.'
+                    : 'Day numbers 1–31 (1 at the top) — lines up with a "Rotate as: Day of month" pointer.'}
+                </p>
+              )}
+              {!el.dayMode && (
                 <>
                   <NumberField
-                    label="Step"
-                    value={el.numberStep ?? 1}
+                    label="Count"
+                    value={el.numberCount ?? 12}
                     min={1}
-                    max={1000}
+                    max={60}
                     onStart={commit}
-                    onChange={(v) => patch({ numberStep: Math.round(v) })}
+                    onChange={(v) => patch({ numberCount: Math.round(v) })}
                   />
-                  <SwitchField
-                    label="Zero at top"
-                    checked={el.zeroAtTop ?? false}
-                    onChange={(v) => commitPatch({ zeroAtTop: v })}
-                  />
+                  <FieldRow label="Custom text">
+                    <textarea
+                      className="props__textarea"
+                      rows={4}
+                      placeholder={'Leave blank for 1, 2, 3…\nOr enter one label per line,\ne.g. Mon / Tue / Wed…'}
+                      value={(el.labels ?? []).join('\n')}
+                      onFocus={commit}
+                      onChange={(e) => patch({ labels: e.target.value.split('\n') })}
+                    />
+                  </FieldRow>
+                  {!el.labels?.some((s) => s.length > 0) && (
+                    <>
+                      <NumberField
+                        label="Step"
+                        value={el.numberStep ?? 1}
+                        min={1}
+                        max={1000}
+                        onStart={commit}
+                        onChange={(v) => patch({ numberStep: Math.round(v) })}
+                      />
+                      <SwitchField
+                        label="Zero at top"
+                        checked={el.zeroAtTop ?? false}
+                        onChange={(v) => commitPatch({ zeroAtTop: v })}
+                      />
+                    </>
+                  )}
                 </>
               )}
               <SwitchField
@@ -930,7 +1023,33 @@ function ElementProperties({ el }: { el: WatchElement }) {
                 onStart={commit}
                 onChange={(v) => patch({ numberColor: v })}
                 bindingKey={elementBindingKey(el.id, 'numberColor')}
+                allowNone
               />
+            </>
+          )}
+          <NumberField
+            label="Stroke width"
+            value={el.strokeWidth ?? 0}
+            min={0}
+            max={20}
+            step={0.5}
+            suffix="px"
+            onStart={commit}
+            onChange={(v) => patch({ strokeWidth: v })}
+          />
+          {(el.strokeWidth ?? 0) > 0 && (
+            <>
+              <ColorField
+                label="Stroke color"
+                value={el.strokeColor ?? '#000000'}
+                onStart={commit}
+                onChange={(v) => patch({ strokeColor: v })}
+                bindingKey={elementBindingKey(el.id, 'strokeColor')}
+              />
+              <p className="props__note">
+                Outlines dot/rect ticks and labels — line ticks are already drawn as strokes, so
+                they only follow their tick color.
+              </p>
             </>
           )}
         </FieldGroup>
@@ -997,6 +1116,7 @@ function ElementProperties({ el }: { el: WatchElement }) {
             onStart={commit}
             onChange={(v) => patch({ fill: v })}
             bindingKey={elementBindingKey(el.id, 'fill')}
+            allowNone
           />
           <NumberField
             label="Stroke width"
